@@ -877,7 +877,7 @@ function renderFeed(bs){
       if(feel)badges+='<span class="mc-badge feel">feel</span>';
       if(resolved)badges+='<span class="mc-badge resolved">已沉底</span>';
       if(imp>=8&&!pinned&&!feel)badges+=`<span class="mc-badge imp">imp:${imp}</span>`;
-      let domH=domains.filter(Boolean).slice(0,2).map(d=>`<span class="mc-domain">${esc(d)}</span>`).join('');
+      let domH=domains.filter(Boolean).slice(0,2).map(d=>`<span class="mc-domain" style="cursor:pointer" onclick="event.stopPropagation();document.getElementById('search-input').value='${d}';searchQ='${d}';renderFeed(allBuckets);">${esc(d)}</span>`).join('');
       let tagH=tags.slice(0,3).map(t=>`<span class="mc-tag" style="cursor:pointer" onclick="event.stopPropagation();document.getElementById('search-input').value='${t}';searchQ='${t}';renderFeed(allBuckets);">#${esc(t)}</span>`).join('');
       if(tags.length>3)tagH+=`<span class="mc-tag">+${tags.length-3}</span>`;
       h+=`<div class="${cc}" onclick="openDetail('${id}')">`;
@@ -986,7 +986,7 @@ async function openDetail(id){
     <div class="mm-item"><div class="mm-label">唤醒度</div><div class="mm-val">${meta.arousal!=null?meta.arousal:b.arousal!=null?b.arousal:'—'}</div></div>
     <div class="mm-item"><div class="mm-label">状态</div><div class="mm-val">${bPinned(b)?'📌 钉选':bResolved(b)?'💤 已沉底':'🟢 活跃'}</div></div>
     <div class="mm-item"><div class="mm-label">权重</div><div class="mm-val">${bScore(b).toFixed(4)}</div></div>`;
-  document.getElementById('m-tags').innerHTML=tags.map(t=>`<span class="modal-tag" style="cursor:pointer" onclick="closeModal();document.getElementById('search-input').value='${t}';searchQ='${t}';renderFeed(allBuckets);">#${esc(t)}</span>`).join('');
+  document.getElementById('m-tags').innerHTML=domains.filter(Boolean).map(d=>`<span class="modal-tag" style="background:rgba(155,142,196,0.15);cursor:pointer" onclick="closeModal();document.getElementById('search-input').value='${d}';searchQ='${d}';renderFeed(allBuckets);">${esc(d)}</span>`).concat(tags.map(t=>`<span class="modal-tag" style="cursor:pointer" onclick="closeModal();document.getElementById('search-input').value='${t}';searchQ='${t}';renderFeed(allBuckets);">#${esc(t)}</span>`).join('');
   document.getElementById('e-name').value=name;
   document.getElementById('e-content').value=content;
   document.getElementById('e-tags').value=tags.join(', ');
