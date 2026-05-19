@@ -24,7 +24,7 @@
   --border-soft: #F0ECF7;
   --positive: #6AAE7E;
   --negative: #C47E7E;
-  --warning: #C4A84E;
+  --warning: #C49878;
   --shadow-sm: 0 1px 3px rgba(62,48,96,0.04);
   --shadow-md: 0 4px 16px rgba(62,48,96,0.06);
   --shadow-lg: 0 8px 32px rgba(62,48,96,0.08);
@@ -189,7 +189,7 @@ body {
   position:relative;
 }
 .mem-card:hover { border-color:var(--primary-soft); box-shadow:var(--shadow-md); transform:translateY(-1px); }
-.mem-card.is-pinned { border-left:3px solid #E8C47E; }
+.mem-card.is-pinned { border-left:3px solid #D48990; }
 .mem-card.is-feel { border-left:3px solid var(--accent); }
 .mem-card.is-high-imp { border-left:3px solid #C47E8B; }
 
@@ -199,7 +199,7 @@ body {
 .mc-badge {
   padding:2px 7px; border-radius:8px; font-size:10px; font-weight:600; line-height:1.4;
 }
-.mc-badge.pin { background:rgba(232,196,126,0.15); color:#B8940E; }
+.mc-badge.pin { background:rgba(196,120,126,0.12); color:#A0505A; }
 .mc-badge.feel { background:rgba(212,168,224,0.15); color:#9B5AAE; }
 .mc-badge.imp { background:rgba(196,126,139,0.15); color:#A05060; }
 .mc-badge.resolved { background:rgba(180,180,200,0.15); color:#888; }
@@ -569,7 +569,7 @@ body {
 <div class="content-area" id="view-network" style="display:none">
   <div class="network-legend">
     <div class="legend-item"><span class="legend-dot" style="background:var(--primary-deep)"></span> dynamic</div>
-    <div class="legend-item"><span class="legend-dot" style="background:#C4A84E"></span> permanent</div>
+    <div class="legend-item"><span class="legend-dot" style="background:#C4787E"></span> permanent</div>
     <div class="legend-item"><span class="legend-dot" style="background:#B07AAF"></span> feel</div>
     <div class="legend-item"><span class="legend-dot" style="background:var(--text-muted)"></span> archived</div>
   </div>
@@ -698,13 +698,14 @@ body {
       <div class="modal-meta-grid" id="m-meta"></div>
       <div class="modal-label" style="margin-top:16px;">标签</div>
       <div class="modal-tags" id="m-tags"></div>
-      <div class="edit-section">
-        <div class="modal-label">编辑</div>
+   <div style="padding-top:16px;border-top:1px solid var(--border);">
+        <button class="btn btn-sec" onclick="var s=document.getElementById('edit-area');s.style.display=s.style.display==='none'?'block':'none'" style="width:100%">✏️ 展开编辑</button>
+        <div id="edit-area" style="display:none;margin-top:12px;">
         <div class="edit-field"><label class="edit-lbl">标题</label><input class="edit-inp" id="e-name" type="text"></div>
         <div class="edit-field"><label class="edit-lbl">内容</label><textarea class="edit-txt" id="e-content"></textarea></div>
         <div class="edit-field"><label class="edit-lbl">标签（逗号分隔）</label><input class="edit-inp" id="e-tags" type="text"></div>
-      </div>
-    </div>
+</div>
+    </div></div>
     <div class="modal-actions">
       <button class="btn btn-del" id="btn-delete">删除</button>
       <button class="btn btn-sec" onclick="closeModal()">取消</button>
@@ -877,7 +878,7 @@ function renderFeed(bs){
       if(resolved)badges+='<span class="mc-badge resolved">已沉底</span>';
       if(imp>=8&&!pinned&&!feel)badges+=`<span class="mc-badge imp">imp:${imp}</span>`;
       let domH=domains.filter(Boolean).slice(0,2).map(d=>`<span class="mc-domain">${esc(d)}</span>`).join('');
-      let tagH=tags.slice(0,3).map(t=>`<span class="mc-tag">#${esc(t)}</span>`).join('');
+      let tagH=tags.slice(0,3).map(t=>`<span class="mc-tag" style="cursor:pointer" onclick="event.stopPropagation();document.getElementById('search-input').value='${t}';searchQ='${t}';renderFeed(allBuckets);">#${esc(t)}</span>`).join('');
       if(tags.length>3)tagH+=`<span class="mc-tag">+${tags.length-3}</span>`;
       h+=`<div class="${cc}" onclick="openDetail('${id}')">`;
       h+=`<div class="mc-top"><div class="mc-name">${esc(name)}</div><div class="mc-badges">${badges}</div></div>`;
@@ -904,7 +905,15 @@ document.getElementById('filter-pills').onclick=e=>{
 let searchTimer;
 document.getElementById('search-input').oninput=e=>{
   clearTimeout(searchTimer);
-  searchTimer=setTimeout(()=>{searchQ=e.target.value.trim();renderFeed(allBuckets);},300);
+  const val=e.target.value.trim();
+  searchTimer=setTimeout(async()=>{
+    searchQ=val;
+    if(val.length>=2){
+      try{const r=await authFetch('/api/search?q='+encodeURIComponent(val));
+        if(r&&r.ok){const results=await r.json();renderFeed(results);return;}}catch{}
+    }
+    renderFeed(allBuckets);
+  },400);
 };
 
 /* ── Calendar ── */
@@ -977,7 +986,7 @@ async function openDetail(id){
     <div class="mm-item"><div class="mm-label">唤醒度</div><div class="mm-val">${meta.arousal!=null?meta.arousal:b.arousal!=null?b.arousal:'—'}</div></div>
     <div class="mm-item"><div class="mm-label">状态</div><div class="mm-val">${bPinned(b)?'📌 钉选':bResolved(b)?'💤 已沉底':'🟢 活跃'}</div></div>
     <div class="mm-item"><div class="mm-label">权重</div><div class="mm-val">${bScore(b).toFixed(4)}</div></div>`;
-  document.getElementById('m-tags').innerHTML=tags.map(t=>`<span class="modal-tag">#${esc(t)}</span>`).join('');
+  document.getElementById('m-tags').innerHTML=tags.map(t=>`<span class="modal-tag" style="cursor:pointer" onclick="closeModal();document.getElementById('search-input').value='${t}';searchQ='${t}';renderFeed(allBuckets);">#${esc(t)}</span>`).join('');
   document.getElementById('e-name').value=name;
   document.getElementById('e-content').value=content;
   document.getElementById('e-tags').value=tags.join(', ');
@@ -1078,11 +1087,11 @@ function drawNetwork(ctx,W,H,data){
   edges.forEach(e=>{const a=pos[e.source],b=pos[e.target];if(!a||!b)return;
     ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);
     ctx.strokeStyle=`rgba(155,142,196,${e.similarity*0.35})`;ctx.lineWidth=Math.max(0.5,e.similarity*2);ctx.stroke();});
-  const colors={dynamic:'#6E5BA0',permanent:'#C4A84E',feel:'#B07AAF',archived:'#B0A8C0'};
+  const colors={dynamic:'#6E5BA0',permanent:'#C4787E',feel:'#B07AAF',archived:'#B0A8C0'};
   nodes.forEach(n=>{const p=pos[n.id];const r=Math.max(4,Math.min(14,n.score*0.8));const c=colors[n.type]||'#6E5BA0';
     ctx.beginPath();ctx.arc(p.x,p.y,r+4,0,Math.PI*2);ctx.fillStyle=c+'15';ctx.fill();
     ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.fillStyle=n.resolved?c+'70':c;ctx.fill();
-    if(n.pinned){ctx.strokeStyle='#C4A84E';ctx.lineWidth=2;ctx.stroke();}
+    if(n.pinned){ctx.strokeStyle='#C4787E';ctx.lineWidth=2;ctx.stroke();}
     const nm=n.name.length>10?n.name.slice(0,10)+'…':n.name;
     ctx.fillStyle='#3A3150';ctx.font='11px DM Sans,sans-serif';ctx.textAlign='center';ctx.fillText(nm,p.x,p.y+r+14);});
 }
