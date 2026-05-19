@@ -449,6 +449,44 @@ body {
 ::-webkit-scrollbar-track { background:transparent; }
 ::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
 ::-webkit-scrollbar-thumb:hover { background:var(--primary-soft); }
+
+/* ── Dark Theme ── */
+[data-theme="dark"] {
+  --bg: #1A1726;
+  --bg-warm: #211E2E;
+  --card: #2A2640;
+  --surface: rgba(42,38,64,0.6);
+  --primary: #B0A0D8;
+  --primary-soft: #8878B8;
+  --primary-deep: #C8BBEA;
+  --primary-glass: rgba(176,160,216,0.1);
+  --accent: #D4A8E0;
+  --text: #E8E4F0;
+  --text-secondary: #A8A0B8;
+  --text-muted: #6E6880;
+  --border: #3A3550;
+  --border-soft: #322E48;
+  --positive: #6AAE7E;
+  --negative: #D08888;
+  --warning: #D4A878;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.2);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.25);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.3);
+  --shadow-glow: 0 0 20px rgba(176,160,216,0.2);
+}
+[data-theme="dark"] .header {
+  background: linear-gradient(135deg, #211E2E 0%, #2A2540 100%);
+}
+[data-theme="dark"] #auth-overlay {
+  background: linear-gradient(135deg, #1A1726 0%, #2A2240 50%, #211E2E 100%);
+}
+[data-theme="dark"] #network-canvas { background:var(--card); }
+[data-theme="dark"] .cal-day.lv0 { background:var(--bg); }
+[data-theme="dark"] .cal-day.lv1 { background:#3A3060; color:#C8BBEA; }
+[data-theme="dark"] .cal-day.lv2 { background:#4A3878; color:#D8D0F0; }
+[data-theme="dark"] .cal-day.lv3 { background:#5A4890; color:white; }
+[data-theme="dark"] .cal-day.lv4 { background:#7B68AE; color:white; }
+[data-theme="dark"] .cal-day.lv5 { background:#9B8EC4; color:white; }
 </style>
 </head>
 <body>
