@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ombre Brain · 记忆</title>
+<title>Ombre Brain</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -11,18 +11,20 @@
   --bg: #F7F4FC;
   --bg-warm: #FBF9FF;
   --card: #FFFFFF;
-  --card-hover: #FDFCFF;
+  --surface: rgba(255,255,255,0.6);
   --primary: #9B8EC4;
   --primary-soft: #C6BBDF;
   --primary-deep: #6E5BA0;
-  --primary-glass: rgba(155, 142, 196, 0.08);
+  --primary-glass: rgba(155,142,196,0.08);
   --accent: #D4A8E0;
-  --accent-warm: #E8C4D8;
   --text: #3A3150;
   --text-secondary: #7E7694;
   --text-muted: #B0A8C0;
   --border: #EDE8F5;
   --border-soft: #F0ECF7;
+  --positive: #6AAE7E;
+  --negative: #C47E7E;
+  --warning: #C4A84E;
   --shadow-sm: 0 1px 3px rgba(62,48,96,0.04);
   --shadow-md: 0 4px 16px rgba(62,48,96,0.06);
   --shadow-lg: 0 8px 32px rgba(62,48,96,0.08);
@@ -33,16 +35,10 @@
   --radius-xl: 28px;
   --font-display: 'Cormorant Garamond', 'Noto Serif SC', serif;
   --font-body: 'DM Sans', -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  --feel-color: #D4A8E0;
-  --pinned-color: #E8C47E;
-  --high-imp-color: #C47E8B;
   --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-* { margin: 0; padding: 0; box-sizing: border-box; }
-
-html { scroll-behavior: smooth; }
-
+* { margin:0; padding:0; box-sizing:border-box; }
 body {
   font-family: var(--font-body);
   background: var(--bg);
@@ -52,1493 +48,1229 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* ─── Header ─── */
+/* ── Auth Overlay ── */
+#auth-overlay {
+  position:fixed; inset:0; z-index:9999;
+  background: linear-gradient(135deg, #F7F4FC 0%, #EDE0F8 50%, #F0ECF7 100%);
+  display:flex; align-items:center; justify-content:center;
+}
+.auth-box {
+  background: var(--card); border:1px solid var(--border);
+  border-radius: var(--radius-xl); padding:48px 40px; max-width:400px; width:90%;
+  text-align:center; box-shadow: var(--shadow-lg);
+}
+.auth-box h2 {
+  font-family: var(--font-display); font-size:30px; color:var(--primary-deep); margin-bottom:6px;
+}
+.auth-box h2 span { font-weight:400; font-style:italic; color:var(--primary); }
+.auth-subtitle { color:var(--text-secondary); font-size:13px; margin-bottom:28px; }
+.auth-input {
+  display:block; width:100%; padding:12px 18px; border:1px solid var(--border);
+  border-radius:12px; background:var(--bg-warm); color:var(--text);
+  font-size:14px; font-family:var(--font-body); margin-bottom:12px; outline:none;
+  transition: var(--transition);
+}
+.auth-input:focus { border-color:var(--primary-soft); box-shadow:var(--shadow-glow); }
+.auth-btn {
+  width:100%; padding:12px; background:var(--primary); color:#fff;
+  border:none; border-radius:12px; font-size:14px; font-family:var(--font-body);
+  font-weight:600; cursor:pointer; transition:var(--transition);
+}
+.auth-btn:hover { background:var(--primary-deep); }
+#auth-error { color:var(--negative); font-size:13px; margin-top:12px; display:none; }
+
+/* ── Header ── */
 .header {
   background: linear-gradient(135deg, var(--bg-warm) 0%, #F0EAF8 100%);
-  border-bottom: 1px solid var(--border);
-  padding: 24px 0 20px;
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  backdrop-filter: blur(10px);
+  border-bottom:1px solid var(--border);
+  padding:20px 0 0;
+  position:sticky; top:0; z-index:100;
+  backdrop-filter:blur(12px);
 }
-
-.header-inner {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 0 24px;
-}
-
+.header-inner { max-width:1100px; margin:0 auto; padding:0 24px; }
 .header-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 18px;
+  display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;
 }
-
 .logo {
-  font-family: var(--font-display);
-  font-size: 28px;
-  font-weight: 600;
-  color: var(--primary-deep);
-  letter-spacing: 0.02em;
+  font-family:var(--font-display); font-size:26px; font-weight:600;
+  color:var(--primary-deep); letter-spacing:0.02em;
+}
+.logo span { font-weight:400; font-style:italic; color:var(--primary); margin-left:4px; }
+.header-stats {
+  display:flex; gap:14px; font-size:12px; color:var(--text-secondary); align-items:center;
+}
+.header-stats .dot { width:6px; height:6px; border-radius:50%; display:inline-block; margin-right:4px; }
+.header-right { display:flex; align-items:center; gap:12px; }
+.search-input {
+  padding:8px 16px 8px 36px; border:1px solid var(--border);
+  border-radius:20px; background:var(--card); font-size:13px;
+  font-family:var(--font-body); color:var(--text); width:200px; outline:none;
+  transition:var(--transition);
+}
+.search-input:focus { border-color:var(--primary-soft); box-shadow:var(--shadow-glow); width:260px; }
+.search-input::placeholder { color:var(--text-muted); }
+.search-wrap { position:relative; }
+.search-wrap::before {
+  content:'🔍'; position:absolute; left:12px; top:50%; transform:translateY(-50%);
+  font-size:13px; pointer-events:none;
+}
+.logout-btn {
+  background:none; border:1px solid var(--border); color:var(--text-muted);
+  border-radius:16px; padding:5px 14px; font-size:12px; cursor:pointer;
+  font-family:var(--font-body); transition:var(--transition);
+}
+.logout-btn:hover { border-color:var(--primary-soft); color:var(--text-secondary); }
+
+/* ── Nav Tabs ── */
+.nav-tabs {
+  display:flex; gap:0; border-bottom:none; overflow-x:auto;
+  scrollbar-width:none; -ms-overflow-style:none;
+}
+.nav-tabs::-webkit-scrollbar { display:none; }
+.nav-tab {
+  padding:10px 20px; font-size:13px; font-weight:500;
+  color:var(--text-secondary); cursor:pointer; white-space:nowrap;
+  border-bottom:2px solid transparent; transition:var(--transition);
+}
+.nav-tab:hover { color:var(--text); }
+.nav-tab.active { color:var(--primary-deep); border-bottom-color:var(--primary); }
+
+/* ── Content Area ── */
+.content-area { max-width:1100px; margin:0 auto; padding:20px 24px; }
+
+/* ── Memory View ── */
+.memory-layout {
+  display:grid; grid-template-columns:1fr 300px; gap:24px; align-items:start;
 }
 
-.logo span {
-  font-weight: 400;
-  font-style: italic;
-  color: var(--primary);
-  margin-left: 4px;
+/* ── Filter Pills ── */
+.filter-pills { display:flex; gap:6px; margin-bottom:20px; flex-wrap:wrap; }
+.filter-pill {
+  padding:6px 14px; border-radius:18px; font-size:12px; font-weight:500;
+  color:var(--text-secondary); background:var(--card); border:1px solid var(--border);
+  cursor:pointer; transition:var(--transition); white-space:nowrap;
+}
+.filter-pill:hover { border-color:var(--primary-soft); color:var(--text); }
+.filter-pill.active {
+  background:var(--primary); color:white; border-color:var(--primary);
+  box-shadow:0 2px 8px rgba(155,142,196,0.3);
 }
 
-.stats-bar {
-  display: flex;
-  gap: 16px;
-  font-size: 13px;
-  color: var(--text-secondary);
-}
-
-.stat-item {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.stat-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--primary-soft);
-}
-
-.stat-dot.live { background: #7EC8A0; }
-.stat-dot.feel { background: var(--feel-color); }
-
-/* ─── Tabs ─── */
-.tabs {
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-  padding-bottom: 2px;
-}
-
-.tabs::-webkit-scrollbar { display: none; }
-
-.tab {
-  padding: 7px 16px;
-  border-radius: 20px;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  background: transparent;
-  border: 1px solid transparent;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: var(--transition);
-  user-select: none;
-}
-
-.tab:hover {
-  background: var(--primary-glass);
-  color: var(--text);
-}
-
-.tab.active {
-  background: var(--primary);
-  color: white;
-  border-color: var(--primary);
-  box-shadow: 0 2px 8px rgba(155,142,196,0.3);
-}
-
-/* ─── Search ─── */
-.search-wrap {
-  max-width: 1100px;
-  margin: 20px auto 0;
-  padding: 0 24px;
-}
-
-.search-box {
-  position: relative;
-}
-
-.search-box input {
-  width: 100%;
-  padding: 12px 20px 12px 44px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  background: var(--card);
-  font-size: 14px;
-  font-family: var(--font-body);
-  color: var(--text);
-  outline: none;
-  transition: var(--transition);
-}
-
-.search-box input::placeholder { color: var(--text-muted); }
-
-.search-box input:focus {
-  border-color: var(--primary-soft);
-  box-shadow: var(--shadow-glow);
-}
-
-.search-icon {
-  position: absolute;
-  left: 16px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--text-muted);
-  font-size: 16px;
-}
-
-/* ─── Main Layout ─── */
-.main {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 24px;
-  display: grid;
-  grid-template-columns: 1fr 320px;
-  gap: 24px;
-  align-items: start;
-}
-
-/* ─── Calendar Heatmap ─── */
-.sidebar { position: sticky; top: 100px; }
-
-.calendar-card {
-  background: var(--card);
-  border-radius: var(--radius-lg);
-  padding: 20px;
-  border: 1px solid var(--border-soft);
-  box-shadow: var(--shadow-sm);
-}
-
-.calendar-title {
-  font-family: var(--font-display);
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--primary-deep);
-  margin-bottom: 4px;
-}
-
-.calendar-subtitle {
-  font-size: 12px;
-  color: var(--text-muted);
-  margin-bottom: 16px;
-}
-
-.calendar-nav {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-
-.calendar-nav button {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--text-secondary);
-  font-size: 18px;
-  padding: 4px 8px;
-  border-radius: 8px;
-  transition: var(--transition);
-}
-
-.calendar-nav button:hover {
-  background: var(--primary-glass);
-  color: var(--primary-deep);
-}
-
-.calendar-month {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.calendar-weekdays {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 2px;
-  margin-bottom: 4px;
-}
-
-.calendar-weekday {
-  text-align: center;
-  font-size: 11px;
-  color: var(--text-muted);
-  padding: 4px 0;
-  font-weight: 500;
-}
-
-.calendar-grid {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 3px;
-}
-
-.calendar-day {
-  aspect-ratio: 1;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  color: var(--text-secondary);
-  cursor: default;
-  transition: var(--transition);
-  position: relative;
-}
-
-.calendar-day.empty { visibility: hidden; }
-
-.calendar-day.has-memories { cursor: pointer; }
-.calendar-day.has-memories:hover { transform: scale(1.15); }
-
-.calendar-day.level-0 { background: var(--bg); }
-.calendar-day.level-1 { background: #E8E0F4; color: var(--primary-deep); }
-.calendar-day.level-2 { background: #D4C8E8; color: var(--primary-deep); }
-.calendar-day.level-3 { background: #BFA8DC; color: white; }
-.calendar-day.level-4 { background: #9B8EC4; color: white; }
-.calendar-day.level-5 { background: #7B68AE; color: white; }
-
-.calendar-day.today {
-  outline: 2px solid var(--primary);
-  outline-offset: 1px;
-}
-
-.calendar-legend {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 4px;
-  margin-top: 12px;
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-.legend-block {
-  width: 12px;
-  height: 12px;
-  border-radius: 3px;
-}
-
-/* ─── Quick Stats in Sidebar ─── */
-.quick-stats {
-  background: var(--card);
-  border-radius: var(--radius-lg);
-  padding: 20px;
-  border: 1px solid var(--border-soft);
-  box-shadow: var(--shadow-sm);
-  margin-top: 16px;
-}
-
-.quick-stat-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 0;
-  font-size: 13px;
-}
-
-.quick-stat-row:not(:last-child) {
-  border-bottom: 1px solid var(--border-soft);
-}
-
-.quick-stat-label { color: var(--text-secondary); }
-
-.quick-stat-value {
-  font-weight: 600;
-  color: var(--text);
-}
-
-/* ─── Memory Groups ─── */
-.memory-feed { min-width: 0; }
-
-.date-group { margin-bottom: 24px; }
-
+/* ── Date Groups ── */
+.date-group { margin-bottom:20px; }
 .date-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 0;
-  cursor: pointer;
-  user-select: none;
-  position: sticky;
-  top: 88px;
-  z-index: 10;
-  background: var(--bg);
+  display:flex; align-items:center; gap:10px; padding:6px 0;
+  cursor:pointer; user-select:none;
 }
-
-.date-header::before {
-  content: '';
-  position: absolute;
-  inset: -4px -12px;
-  background: var(--bg);
-  z-index: -1;
-  border-radius: 8px;
-}
-
 .date-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--primary-soft);
-  flex-shrink: 0;
-  transition: var(--transition);
+  width:8px; height:8px; border-radius:50%; background:var(--primary-soft); flex-shrink:0;
 }
-
-.date-group.today .date-dot {
-  background: var(--primary);
-  box-shadow: 0 0 8px rgba(155,142,196,0.4);
+.date-group.is-today .date-dot {
+  background:var(--primary); box-shadow:0 0 8px rgba(155,142,196,0.4);
 }
-
 .date-label {
-  font-family: var(--font-display);
-  font-size: 17px;
-  font-weight: 600;
-  color: var(--text);
+  font-family:var(--font-display); font-size:16px; font-weight:600; color:var(--text);
+}
+.date-count { font-size:11px; color:var(--text-muted); margin-left:auto; }
+.date-chevron { color:var(--text-muted); font-size:12px; transition:transform var(--transition); }
+.date-group.collapsed .date-chevron { transform:rotate(-90deg); }
+.date-group.collapsed .mem-list { display:none; }
+
+.mem-list {
+  padding-left:18px; border-left:2px solid var(--border-soft); margin-left:3px;
+  display:flex; flex-direction:column; gap:8px; padding-top:8px;
 }
 
-.date-count {
-  font-size: 12px;
-  color: var(--text-muted);
-  margin-left: auto;
+/* ── Memory Cards ── */
+.mem-card {
+  background:var(--card); border-radius:var(--radius-md);
+  padding:14px 16px; border:1px solid var(--border-soft);
+  box-shadow:var(--shadow-sm); cursor:pointer; transition:var(--transition);
+  position:relative;
 }
+.mem-card:hover { border-color:var(--primary-soft); box-shadow:var(--shadow-md); transform:translateY(-1px); }
+.mem-card.is-pinned { border-left:3px solid #E8C47E; }
+.mem-card.is-feel { border-left:3px solid var(--accent); }
+.mem-card.is-high-imp { border-left:3px solid #C47E8B; }
 
-.date-chevron {
-  color: var(--text-muted);
-  font-size: 14px;
-  transition: transform var(--transition);
+.mc-top { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; margin-bottom:6px; }
+.mc-name { font-size:14px; font-weight:600; color:var(--text); line-height:1.4; flex:1; }
+.mc-badges { display:flex; gap:4px; flex-shrink:0; }
+.mc-badge {
+  padding:2px 7px; border-radius:8px; font-size:10px; font-weight:600; line-height:1.4;
 }
+.mc-badge.pin { background:rgba(232,196,126,0.15); color:#B8940E; }
+.mc-badge.feel { background:rgba(212,168,224,0.15); color:#9B5AAE; }
+.mc-badge.imp { background:rgba(196,126,139,0.15); color:#A05060; }
+.mc-badge.resolved { background:rgba(180,180,200,0.15); color:#888; }
 
-.date-group.collapsed .date-chevron {
-  transform: rotate(-90deg);
+.mc-preview {
+  font-size:12px; color:var(--text-secondary); line-height:1.5;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+  overflow:hidden; margin-bottom:8px;
 }
-
-.date-group.collapsed .memory-list {
-  display: none;
+.mc-meta { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.mc-domain {
+  font-size:10px; padding:2px 7px; border-radius:6px;
+  background:var(--primary-glass); color:var(--primary-deep); font-weight:500;
 }
+.mc-tag { font-size:10px; color:var(--text-muted); }
+.mc-score { font-size:11px; color:var(--primary); font-weight:600; margin-left:auto; }
 
-.memory-list {
-  padding-left: 22px;
-  border-left: 2px solid var(--border-soft);
-  margin-left: 4px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding-top: 8px;
+/* ── Sidebar ── */
+.sidebar { position:sticky; top:90px; }
+
+.side-card {
+  background:var(--card); border-radius:var(--radius-lg);
+  padding:18px; border:1px solid var(--border-soft); box-shadow:var(--shadow-sm);
+  margin-bottom:14px;
 }
-
-/* ─── Memory Cards ─── */
-.memory-card {
-  background: var(--card);
-  border-radius: var(--radius-md);
-  padding: 16px 18px;
-  border: 1px solid var(--border-soft);
-  box-shadow: var(--shadow-sm);
-  cursor: pointer;
-  transition: var(--transition);
-  position: relative;
-  overflow: hidden;
+.side-title {
+  font-family:var(--font-display); font-size:16px; font-weight:600;
+  color:var(--primary-deep); margin-bottom:4px;
 }
+.side-subtitle { font-size:11px; color:var(--text-muted); margin-bottom:14px; }
 
-.memory-card:hover {
-  border-color: var(--primary-soft);
-  box-shadow: var(--shadow-md);
-  transform: translateY(-1px);
+/* Calendar */
+.cal-nav { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.cal-nav button {
+  background:none; border:none; cursor:pointer; color:var(--text-secondary);
+  font-size:16px; padding:2px 6px; border-radius:6px; transition:var(--transition);
 }
-
-.memory-card.pinned {
-  border-left: 3px solid var(--pinned-color);
+.cal-nav button:hover { background:var(--primary-glass); color:var(--primary-deep); }
+.cal-month-label { font-size:13px; font-weight:600; color:var(--text); }
+.cal-weekdays, .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
+.cal-wd { text-align:center; font-size:10px; color:var(--text-muted); padding:3px 0; font-weight:500; }
+.cal-day {
+  aspect-ratio:1; border-radius:5px; display:flex; align-items:center; justify-content:center;
+  font-size:10px; color:var(--text-secondary); cursor:default; transition:var(--transition);
 }
+.cal-day.empty { visibility:hidden; }
+.cal-day.has-mem { cursor:pointer; }
+.cal-day.has-mem:hover { transform:scale(1.15); }
+.cal-day.lv0 { background:var(--bg); }
+.cal-day.lv1 { background:#E8E0F4; color:var(--primary-deep); }
+.cal-day.lv2 { background:#D4C8E8; color:var(--primary-deep); }
+.cal-day.lv3 { background:#BFA8DC; color:white; }
+.cal-day.lv4 { background:#9B8EC4; color:white; }
+.cal-day.lv5 { background:#7B68AE; color:white; }
+.cal-day.today { outline:2px solid var(--primary); outline-offset:1px; }
+.cal-legend { display:flex; align-items:center; justify-content:flex-end; gap:3px; margin-top:10px; font-size:10px; color:var(--text-muted); }
+.cal-legend-block { width:10px; height:10px; border-radius:2px; }
 
-.memory-card.feel {
-  border-left: 3px solid var(--feel-color);
+/* Quick Stats */
+.qs-row {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:7px 0; font-size:12px;
 }
+.qs-row:not(:last-child) { border-bottom:1px solid var(--border-soft); }
+.qs-label { color:var(--text-secondary); }
+.qs-val { font-weight:600; color:var(--text); }
 
-.memory-card.high-imp {
-  border-left: 3px solid var(--high-imp-color);
-}
-
-.card-top {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.card-name {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text);
-  line-height: 1.4;
-  flex: 1;
-}
-
-.card-badges {
-  display: flex;
-  gap: 4px;
-  flex-shrink: 0;
-}
-
-.badge {
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 1.4;
-}
-
-.badge.pinned-badge {
-  background: rgba(232,196,126,0.15);
-  color: #B8940E;
-}
-
-.badge.feel-badge {
-  background: rgba(212,168,224,0.15);
-  color: #9B5AAE;
-}
-
-.badge.imp-badge {
-  background: rgba(196,126,139,0.15);
-  color: #A05060;
-}
-
-.card-content {
-  font-size: 13px;
-  color: var(--text-secondary);
-  line-height: 1.6;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  margin-bottom: 10px;
-}
-
-.card-meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.card-domain {
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 8px;
-  background: var(--primary-glass);
-  color: var(--primary-deep);
-  font-weight: 500;
-}
-
-.card-tags {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-  flex: 1;
-}
-
-.card-tag {
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-.card-imp {
-  font-size: 11px;
-  color: var(--text-muted);
-  margin-left: auto;
-  white-space: nowrap;
-}
-
-/* ─── Detail Modal ─── */
+/* ── Detail Modal ── */
 .modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(42,32,68,0.4);
-  backdrop-filter: blur(8px);
-  z-index: 1000;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  animation: fadeIn 0.2s ease;
+  position:fixed; inset:0; background:rgba(42,32,68,0.4); backdrop-filter:blur(8px);
+  z-index:1000; display:none; align-items:center; justify-content:center; padding:20px;
 }
-
-.modal-overlay.open { display: flex; }
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes slideUp {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.modal {
-  background: var(--card);
-  border-radius: var(--radius-xl);
-  width: 100%;
-  max-width: 560px;
-  max-height: 85vh;
-  overflow-y: auto;
-  box-shadow: var(--shadow-lg);
+.modal-overlay.open { display:flex; }
+.modal-box {
+  background:var(--card); border-radius:var(--radius-xl); width:100%; max-width:560px;
+  max-height:85vh; overflow-y:auto; box-shadow:var(--shadow-lg);
   animation: slideUp 0.25s ease;
 }
+@keyframes slideUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
 
-.modal-header {
-  padding: 24px 24px 0;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
+.modal-head { padding:24px 24px 0; display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
+.modal-title { font-family:var(--font-display); font-size:22px; font-weight:600; color:var(--text); line-height:1.3; }
+.modal-x {
+  width:32px; height:32px; border-radius:50%; border:none; background:var(--bg);
+  color:var(--text-secondary); font-size:18px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:var(--transition);
 }
+.modal-x:hover { background:var(--primary-glass); color:var(--text); }
+.modal-body { padding:20px 24px; }
+.modal-label { font-size:11px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:8px; }
+.modal-text { font-size:14px; color:var(--text); line-height:1.8; white-space:pre-wrap; margin-bottom:20px; }
+.modal-meta-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:20px; }
+.mm-item { background:var(--bg); padding:10px 12px; border-radius:var(--radius-sm); }
+.mm-label { font-size:10px; color:var(--text-muted); margin-bottom:2px; }
+.mm-val { font-size:13px; font-weight:600; color:var(--text); }
+.modal-tags { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:20px; }
+.modal-tag { padding:3px 10px; border-radius:10px; font-size:11px; background:var(--primary-glass); color:var(--primary-deep); font-weight:500; }
+.imp-wrap { display:flex; align-items:center; gap:10px; margin-bottom:20px; }
+.imp-track { flex:1; height:6px; background:var(--bg); border-radius:3px; overflow:hidden; }
+.imp-fill { height:100%; border-radius:3px; background:linear-gradient(90deg,var(--primary-soft),var(--primary)); transition:width 0.4s ease; }
+.imp-num { font-size:14px; font-weight:600; color:var(--primary-deep); min-width:20px; text-align:right; }
 
-.modal-title {
-  font-family: var(--font-display);
-  font-size: 22px;
-  font-weight: 600;
-  color: var(--text);
-  line-height: 1.3;
+/* Edit section in modal */
+.edit-section { padding-top:16px; border-top:1px solid var(--border); }
+.edit-field { margin-bottom:12px; }
+.edit-lbl { font-size:12px; font-weight:600; color:var(--text-secondary); margin-bottom:5px; display:block; }
+.edit-inp, .edit-txt {
+  width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:var(--radius-sm);
+  font-size:13px; font-family:var(--font-body); color:var(--text); background:var(--bg-warm);
+  outline:none; transition:var(--transition);
 }
+.edit-inp:focus, .edit-txt:focus { border-color:var(--primary-soft); box-shadow:0 0 0 3px rgba(155,142,196,0.1); }
+.edit-txt { resize:vertical; min-height:70px; line-height:1.6; }
 
-.modal-close {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  border: none;
-  background: var(--bg);
-  color: var(--text-secondary);
-  font-size: 18px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transition: var(--transition);
-}
-
-.modal-close:hover {
-  background: var(--primary-glass);
-  color: var(--text);
-}
-
-.modal-body { padding: 20px 24px; }
-
-.modal-section {
-  margin-bottom: 20px;
-}
-
-.modal-section-label {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  margin-bottom: 8px;
-}
-
-.modal-content-text {
-  font-size: 14px;
-  color: var(--text);
-  line-height: 1.8;
-  white-space: pre-wrap;
-}
-
-.modal-meta-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
-.meta-item {
-  background: var(--bg);
-  padding: 10px 14px;
-  border-radius: var(--radius-sm);
-}
-
-.meta-label {
-  font-size: 11px;
-  color: var(--text-muted);
-  margin-bottom: 2px;
-}
-
-.meta-value {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.modal-tags-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.modal-tag {
-  padding: 4px 12px;
-  border-radius: 12px;
-  font-size: 12px;
-  background: var(--primary-glass);
-  color: var(--primary-deep);
-  font-weight: 500;
-}
-
-/* Importance bar */
-.imp-bar-wrap {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.imp-bar-track {
-  flex: 1;
-  height: 6px;
-  background: var(--bg);
-  border-radius: 3px;
-  overflow: hidden;
-}
-
-.imp-bar-fill {
-  height: 100%;
-  border-radius: 3px;
-  background: linear-gradient(90deg, var(--primary-soft), var(--primary));
-  transition: width 0.4s ease;
-}
-
-.imp-bar-num {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--primary-deep);
-  min-width: 24px;
-  text-align: right;
-}
-
-/* ─── Edit Modal ─── */
-.edit-section { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border); }
-
-.edit-field { margin-bottom: 14px; }
-
-.edit-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  margin-bottom: 6px;
-  display: block;
-}
-
-.edit-input, .edit-textarea {
-  width: 100%;
-  padding: 10px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  font-size: 14px;
-  font-family: var(--font-body);
-  color: var(--text);
-  background: var(--bg-warm);
-  outline: none;
-  transition: var(--transition);
-}
-
-.edit-input:focus, .edit-textarea:focus {
-  border-color: var(--primary-soft);
-  box-shadow: 0 0 0 3px rgba(155,142,196,0.1);
-}
-
-.edit-textarea {
-  resize: vertical;
-  min-height: 80px;
-  line-height: 1.6;
-}
-
-.modal-actions {
-  padding: 16px 24px 24px;
-  display: flex;
-  gap: 10px;
-  justify-content: flex-end;
-}
-
+.modal-actions { padding:14px 24px 24px; display:flex; gap:8px; justify-content:flex-end; }
 .btn {
-  padding: 9px 20px;
-  border-radius: 20px;
-  font-size: 13px;
-  font-weight: 600;
-  font-family: var(--font-body);
-  cursor: pointer;
-  transition: var(--transition);
-  border: none;
+  padding:8px 18px; border-radius:18px; font-size:13px; font-weight:600;
+  font-family:var(--font-body); cursor:pointer; transition:var(--transition); border:none;
 }
+.btn-pri { background:var(--primary); color:white; }
+.btn-pri:hover { background:var(--primary-deep); box-shadow:0 2px 8px rgba(155,142,196,0.3); }
+.btn-sec { background:var(--bg); color:var(--text-secondary); border:1px solid var(--border); }
+.btn-sec:hover { background:var(--primary-glass); color:var(--text); }
+.btn-del { background:rgba(196,126,126,0.1); color:var(--negative); }
+.btn-del:hover { background:rgba(196,126,126,0.2); }
 
-.btn-primary {
-  background: var(--primary);
-  color: white;
+/* ── Original Tabs: config, breath, network, import, settings ── */
+/* Reuse original styling with new palette */
+.config-section {
+  margin-bottom:24px; padding:20px; background:var(--card);
+  border-radius:var(--radius-lg); border:1px solid var(--border-soft); box-shadow:var(--shadow-sm);
 }
-
-.btn-primary:hover {
-  background: var(--primary-deep);
-  box-shadow: 0 2px 8px rgba(155,142,196,0.3);
+.config-section h3 {
+  font-family:var(--font-display); font-size:16px; font-weight:600;
+  color:var(--primary-deep); margin-bottom:14px;
 }
-
-.btn-secondary {
-  background: var(--bg);
-  color: var(--text-secondary);
-  border: 1px solid var(--border);
+.config-row { display:flex; align-items:center; gap:12px; margin-bottom:10px; }
+.config-row label { width:100px; font-size:12px; color:var(--text-secondary); flex-shrink:0; font-weight:500; }
+.config-row input, .config-row select {
+  flex:1; background:var(--bg-warm); border:1px solid var(--border); color:var(--text);
+  padding:9px 12px; border-radius:10px; font-family:var(--font-body); font-size:13px;
+  outline:none; transition:var(--transition);
 }
+.config-row input:focus, .config-row select:focus { border-color:var(--primary-soft); box-shadow:var(--shadow-glow); }
 
-.btn-secondary:hover {
-  background: var(--primary-glass);
-  color: var(--text);
+.btn-primary-cfg {
+  padding:10px 24px; background:var(--primary); color:#fff; border:none;
+  border-radius:20px; font-family:var(--font-body); font-size:13px; font-weight:600;
+  cursor:pointer; transition:var(--transition);
 }
-
-.btn-danger {
-  background: rgba(196,126,139,0.1);
-  color: var(--high-imp-color);
+.btn-primary-cfg:hover { background:var(--primary-deep); }
+.btn-secondary-cfg {
+  padding:10px 24px; background:var(--card); color:var(--primary-deep);
+  border:1px solid var(--border); border-radius:20px;
+  font-family:var(--font-body); font-size:13px; font-weight:600;
+  cursor:pointer; transition:var(--transition);
 }
+.btn-secondary-cfg:hover { background:var(--primary-glass); }
 
-.btn-danger:hover {
-  background: rgba(196,126,139,0.2);
+/* Breath */
+.breath-controls { display:flex; gap:10px; margin-bottom:20px; align-items:center; flex-wrap:wrap; }
+.breath-controls input {
+  background:var(--bg-warm); border:1px solid var(--border); color:var(--text);
+  padding:9px 12px; border-radius:10px; font-family:var(--font-body); font-size:13px;
+  outline:none;
 }
-
-/* ─── Loading & Empty ─── */
-.loading-wrap {
-  text-align: center;
-  padding: 60px 20px;
-  color: var(--text-muted);
+.breath-controls input:focus { border-color:var(--primary-soft); }
+.breath-controls label { font-size:12px; color:var(--text-secondary); font-weight:500; }
+.breath-info {
+  font-size:12px; color:var(--text-secondary); margin-bottom:16px; line-height:1.8;
+  padding:14px 16px; background:var(--card); border-radius:var(--radius-md);
+  border:1px solid var(--border-soft);
 }
+.breath-info code { background:var(--primary-glass); padding:2px 6px; border-radius:5px; color:var(--primary-deep); font-size:11px; }
 
-.loading-spinner {
-  width: 36px;
-  height: 36px;
-  border: 3px solid var(--border);
-  border-top-color: var(--primary);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  margin: 0 auto 16px;
+.score-row {
+  display:grid; grid-template-columns:30px 170px 1fr 55px;
+  gap:10px; padding:10px 14px; border-radius:10px; font-size:12px; align-items:center; margin-bottom:3px;
 }
+.score-row:hover { background:var(--card); box-shadow:var(--shadow-sm); }
+.score-row .rank { color:var(--text-muted); text-align:center; font-weight:500; }
+.score-row .name { font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.score-bars { display:flex; gap:3px; align-items:center; }
+.score-bar-group { display:flex; flex-direction:column; gap:1px; flex:1; }
+.score-bar-track { height:4px; background:var(--border); border-radius:2px; overflow:hidden; }
+.score-bar-fill { height:100%; border-radius:2px; }
+.score-bar-label { font-size:9px; color:var(--text-muted); display:flex; justify-content:space-between; }
+.score-final { font-size:13px; font-weight:600; text-align:right; }
+.score-pass { color:var(--positive); }
+.score-fail { color:var(--text-muted); }
 
-@keyframes spin { to { transform: rotate(360deg); } }
-
-.empty-state {
-  text-align: center;
-  padding: 60px 20px;
-  color: var(--text-muted);
+/* Network */
+#network-canvas {
+  width:100%; height:calc(100vh - 180px); background:var(--card);
+  border-radius:var(--radius-lg); border:1px solid var(--border-soft); box-shadow:var(--shadow-sm);
 }
+.network-legend { display:flex; gap:16px; margin-bottom:14px; font-size:12px; color:var(--text-secondary); }
+.legend-item { display:flex; align-items:center; gap:5px; }
+.legend-dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
 
-.empty-icon {
-  font-size: 48px;
-  margin-bottom: 12px;
-  opacity: 0.4;
+/* Import */
+.import-zone {
+  border:2px dashed var(--border); border-radius:var(--radius-lg);
+  padding:36px; text-align:center; cursor:pointer; margin:16px 0; transition:border-color .2s;
 }
+.import-zone:hover { border-color:var(--primary-soft); }
 
-.empty-text {
-  font-size: 14px;
+/* Loading / Empty */
+.loading-wrap { text-align:center; padding:60px 20px; color:var(--text-muted); }
+.spinner {
+  width:32px; height:32px; border:3px solid var(--border); border-top-color:var(--primary);
+  border-radius:50%; animation:spin 0.8s linear infinite; margin:0 auto 14px;
 }
+@keyframes spin { to{transform:rotate(360deg)} }
 
-/* ─── Toast ─── */
+/* Toast */
 .toast {
-  position: fixed;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%) translateY(80px);
-  background: var(--text);
-  color: white;
-  padding: 10px 24px;
-  border-radius: 20px;
-  font-size: 13px;
-  font-weight: 500;
-  box-shadow: var(--shadow-lg);
-  z-index: 2000;
-  transition: transform 0.3s ease;
-  pointer-events: none;
+  position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(80px);
+  background:var(--text); color:white; padding:10px 24px; border-radius:20px;
+  font-size:13px; font-weight:500; box-shadow:var(--shadow-lg); z-index:2000;
+  transition:transform 0.3s ease; pointer-events:none;
+}
+.toast.show { transform:translateX(-50%) translateY(0); }
+
+/* ── Responsive ── */
+@media(max-width:840px) {
+  .memory-layout { grid-template-columns:1fr; }
+  .sidebar { position:static; order:-1; }
+  .header-top { flex-wrap:wrap; gap:8px; }
+  .search-input { width:160px; }
+  .search-input:focus { width:200px; }
+  .modal-box { max-width:100%; border-radius:var(--radius-lg); }
+  .modal-meta-grid { grid-template-columns:1fr; }
+}
+@media(max-width:480px) {
+  .header { padding:14px 0 0; }
+  .header-inner { padding:0 16px; }
+  .content-area { padding:16px; }
+  .logo { font-size:22px; }
+  .nav-tab { padding:8px 14px; font-size:12px; }
+  .mem-card { padding:12px 14px; }
+  .config-row { flex-wrap:wrap; }
+  .config-row label { width:100%; }
 }
 
-.toast.show { transform: translateX(-50%) translateY(0); }
-
-/* ─── Responsive ─── */
-@media (max-width: 840px) {
-  .main {
-    grid-template-columns: 1fr;
-  }
-
-  .sidebar {
-    position: static;
-    order: -1;
-  }
-
-  .calendar-card { margin-bottom: 0; }
-
-  .header-top { flex-direction: column; align-items: flex-start; gap: 8px; }
-
-  .modal {
-    max-width: 100%;
-    max-height: 90vh;
-    border-radius: var(--radius-lg);
-  }
-
-  .modal-meta-grid { grid-template-columns: 1fr; }
-
-  .date-header { top: 80px; }
-}
-
-@media (max-width: 480px) {
-  .header { padding: 16px 0 14px; }
-  .header-inner { padding: 0 16px; }
-  .search-wrap { padding: 0 16px; }
-  .main { padding: 16px; }
-  .logo { font-size: 24px; }
-  .tabs { gap: 4px; }
-  .tab { padding: 6px 12px; font-size: 12px; }
-  .memory-card { padding: 14px 16px; }
-}
-
-/* ─── Scrollbar ─── */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--primary-soft); }
+::-webkit-scrollbar { width:5px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+::-webkit-scrollbar-thumb:hover { background:var(--primary-soft); }
 </style>
 </head>
 <body>
 
-<!-- Header -->
+<!-- ═══ Auth Overlay ═══ -->
+<div id="auth-overlay">
+  <div class="auth-box">
+    <h2>Ombre<span>Brain</span></h2>
+    <p class="auth-subtitle" id="auth-subtitle">验证身份</p>
+    <div id="auth-setup-form" style="display:none">
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:14px;">首次使用，请设置访问密码</p>
+      <input class="auth-input" type="password" id="auth-setup-pwd" placeholder="设置密码（至少6位）">
+      <input class="auth-input" type="password" id="auth-setup-pwd2" placeholder="确认密码" onkeydown="if(event.key==='Enter')doSetup()">
+      <button class="auth-btn" onclick="doSetup()">设置密码并进入</button>
+    </div>
+    <div id="auth-login-form" style="display:none">
+      <input class="auth-input" type="password" id="auth-login-pwd" placeholder="输入访问密码" onkeydown="if(event.key==='Enter')doLogin()">
+      <button class="auth-btn" onclick="doLogin()">登录</button>
+    </div>
+    <div id="auth-error"></div>
+  </div>
+</div>
+
+<!-- ═══ Header ═══ -->
 <header class="header">
   <div class="header-inner">
     <div class="header-top">
       <div class="logo">Ombre<span>Brain</span></div>
-      <div class="stats-bar">
-        <div class="stat-item"><div class="stat-dot live"></div><span id="stat-total">0</span> 条记忆</div>
-        <div class="stat-item"><div class="stat-dot feel"></div><span id="stat-feel">0</span> 条 feel</div>
-        <div class="stat-item"><div class="stat-dot"></div><span id="stat-pinned">0</span> 条钉选</div>
+      <div class="header-stats" id="header-stats">
+        <span><span class="dot" style="background:var(--positive)"></span><span id="s-total">0</span> 桶</span>
+        <span><span class="dot" style="background:var(--accent)"></span><span id="s-feel">0</span> feel</span>
+        <span><span class="dot" style="background:#E8C47E"></span><span id="s-pinned">0</span> 钉选</span>
+      </div>
+      <div class="header-right">
+        <div class="search-wrap">
+          <input class="search-input" type="text" id="search-input" placeholder="搜索记忆…">
+        </div>
+        <button class="logout-btn" onclick="doLogout()">退出</button>
       </div>
     </div>
-    <div class="tabs" id="tabs">
-      <div class="tab active" data-filter="all">全部</div>
-      <div class="tab" data-filter="pinned">📌 钉选</div>
-      <div class="tab" data-filter="feel">💜 Feel</div>
-      <div class="tab" data-filter="recent">近 7 天</div>
-      <div class="tab" data-filter="important">⭐ 高重要度</div>
-      <div class="tab" data-filter="resolved">已沉底</div>
+    <div class="nav-tabs">
+      <div class="nav-tab active" data-tab="list">记忆桶</div>
+      <div class="nav-tab" data-tab="breath">Breath</div>
+      <div class="nav-tab" data-tab="network">网络</div>
+      <div class="nav-tab" data-tab="config">配置</div>
+      <div class="nav-tab" data-tab="import">导入</div>
+      <div class="nav-tab" data-tab="settings">设置</div>
     </div>
   </div>
 </header>
 
-<!-- Search -->
-<div class="search-wrap">
-  <div class="search-box">
-    <span class="search-icon">🔍</span>
-    <input type="text" id="search-input" placeholder="搜索记忆...">
+<!-- ═══ List View ═══ -->
+<div class="content-area" id="view-list">
+  <div class="memory-layout">
+    <div class="memory-feed">
+      <div class="filter-pills" id="filter-pills">
+        <div class="filter-pill active" data-f="all">全部</div>
+        <div class="filter-pill" data-f="pinned">📌 钉选</div>
+        <div class="filter-pill" data-f="feel">💜 Feel</div>
+        <div class="filter-pill" data-f="recent">近 7 天</div>
+        <div class="filter-pill" data-f="important">⭐ 高重要度</div>
+        <div class="filter-pill" data-f="resolved">💤 已沉底</div>
+        <div class="filter-pill" data-f="digested">🌿 已消化</div>
+      </div>
+      <div id="mem-feed">
+        <div class="loading-wrap"><div class="spinner"></div><div>正在唤醒记忆…</div></div>
+      </div>
+    </div>
+    <aside class="sidebar">
+      <div class="side-card">
+        <div class="side-title">记忆密度</div>
+        <div class="side-subtitle">颜色越深，当天记忆越多</div>
+        <div class="cal-nav">
+          <button id="cal-prev">◀</button>
+          <span class="cal-month-label" id="cal-month"></span>
+          <button id="cal-next">▶</button>
+        </div>
+        <div class="cal-weekdays">
+          <div class="cal-wd">日</div><div class="cal-wd">一</div><div class="cal-wd">二</div>
+          <div class="cal-wd">三</div><div class="cal-wd">四</div><div class="cal-wd">五</div><div class="cal-wd">六</div>
+        </div>
+        <div class="cal-grid" id="cal-grid"></div>
+        <div class="cal-legend">
+          少 <div class="cal-legend-block" style="background:var(--bg)"></div>
+          <div class="cal-legend-block" style="background:#E8E0F4"></div>
+          <div class="cal-legend-block" style="background:#D4C8E8"></div>
+          <div class="cal-legend-block" style="background:#BFA8DC"></div>
+          <div class="cal-legend-block" style="background:#9B8EC4"></div>
+          <div class="cal-legend-block" style="background:#7B68AE"></div> 多
+        </div>
+      </div>
+      <div class="side-card">
+        <div class="qs-row"><span class="qs-label">最活跃领域</span><span class="qs-val" id="qs-domain">—</span></div>
+        <div class="qs-row"><span class="qs-label">平均重要度</span><span class="qs-val" id="qs-imp">—</span></div>
+        <div class="qs-row"><span class="qs-label">平均效价</span><span class="qs-val" id="qs-val">—</span></div>
+        <div class="qs-row"><span class="qs-label">未解决</span><span class="qs-val" id="qs-unresolved">—</span></div>
+      </div>
+    </aside>
   </div>
 </div>
 
-<!-- Main -->
-<div class="main">
-  <div class="memory-feed" id="memory-feed">
-    <div class="loading-wrap" id="loading">
-      <div class="loading-spinner"></div>
-      <div>正在唤醒记忆...</div>
-    </div>
+<!-- ═══ Breath View ═══ -->
+<div class="content-area" id="view-breath" style="display:none">
+  <div class="breath-controls">
+    <label>Query</label>
+    <input type="text" id="breath-query" placeholder="关键词…" style="width:200px">
+    <label>Valence</label>
+    <input type="number" id="breath-valence" placeholder="0~1" min="0" max="1" step="0.1" style="width:70px">
+    <label>Arousal</label>
+    <input type="number" id="breath-arousal" placeholder="0~1" min="0" max="1" step="0.1" style="width:70px">
+    <button class="btn-primary-cfg" onclick="runBreathDebug()">模拟 Breath</button>
   </div>
-
-  <aside class="sidebar">
-    <div class="calendar-card">
-      <div class="calendar-title">记忆密度</div>
-      <div class="calendar-subtitle">颜色越深，当天记忆越多</div>
-      <div class="calendar-nav">
-        <button id="cal-prev">◀</button>
-        <span class="calendar-month" id="cal-month"></span>
-        <button id="cal-next">▶</button>
-      </div>
-      <div class="calendar-weekdays">
-        <div class="calendar-weekday">日</div>
-        <div class="calendar-weekday">一</div>
-        <div class="calendar-weekday">二</div>
-        <div class="calendar-weekday">三</div>
-        <div class="calendar-weekday">四</div>
-        <div class="calendar-weekday">五</div>
-        <div class="calendar-weekday">六</div>
-      </div>
-      <div class="calendar-grid" id="cal-grid"></div>
-      <div class="calendar-legend">
-        少 <div class="legend-block level-0" style="background:var(--bg)"></div>
-        <div class="legend-block" style="background:#E8E0F4"></div>
-        <div class="legend-block" style="background:#D4C8E8"></div>
-        <div class="legend-block" style="background:#BFA8DC"></div>
-        <div class="legend-block" style="background:#9B8EC4"></div>
-        <div class="legend-block" style="background:#7B68AE"></div> 多
-      </div>
-    </div>
-
-    <div class="quick-stats">
-      <div class="quick-stat-row">
-        <span class="quick-stat-label">最活跃领域</span>
-        <span class="quick-stat-value" id="qs-domain">—</span>
-      </div>
-      <div class="quick-stat-row">
-        <span class="quick-stat-label">平均重要度</span>
-        <span class="quick-stat-value" id="qs-imp">—</span>
-      </div>
-      <div class="quick-stat-row">
-        <span class="quick-stat-label">平均情感效价</span>
-        <span class="quick-stat-value" id="qs-valence">—</span>
-      </div>
-      <div class="quick-stat-row">
-        <span class="quick-stat-label">未解决</span>
-        <span class="quick-stat-value" id="qs-unresolved">—</span>
-      </div>
-    </div>
-  </aside>
+  <div class="breath-info" id="breath-info" style="display:none"></div>
+  <div id="breath-results"><div class="loading-wrap">输入 query 后点击「模拟 Breath」</div></div>
 </div>
 
-<!-- Detail Modal -->
+<!-- ═══ Network View ═══ -->
+<div class="content-area" id="view-network" style="display:none">
+  <div class="network-legend">
+    <div class="legend-item"><span class="legend-dot" style="background:var(--primary-deep)"></span> dynamic</div>
+    <div class="legend-item"><span class="legend-dot" style="background:#C4A84E"></span> permanent</div>
+    <div class="legend-item"><span class="legend-dot" style="background:#B07AAF"></span> feel</div>
+    <div class="legend-item"><span class="legend-dot" style="background:var(--text-muted)"></span> archived</div>
+  </div>
+  <canvas id="network-canvas"></canvas>
+</div>
+
+<!-- ═══ Config View ═══ -->
+<div class="content-area" id="view-config" style="display:none">
+  <div style="max-width:600px;margin:0 auto;">
+    <div class="config-section">
+      <h3>脱水 / 打标 API</h3>
+      <div class="config-row"><label>Model</label><input type="text" id="cfg-dehy-model"></div>
+      <div class="config-row"><label>Base URL</label><input type="text" id="cfg-dehy-url"></div>
+      <div class="config-row"><label>API Key</label><input type="password" id="cfg-dehy-key" placeholder="留空不改"></div>
+      <div style="margin-top:-4px;padding-left:112px;font-size:11px;color:var(--text-muted);margin-bottom:10px;">不会持久化到 yaml（请用环境变量）</div>
+      <div class="config-row"><label>Max Tokens</label><input type="number" id="cfg-dehy-maxtokens" min="128" max="8192"></div>
+      <div class="config-row"><label>Temperature</label><input type="number" id="cfg-dehy-temp" min="0" max="2" step="0.05"></div>
+    </div>
+    <div class="config-section">
+      <h3>向量化 Embedding</h3>
+      <div class="config-row"><label>启用</label><select id="cfg-emb-enabled"><option value="true">开启</option><option value="false">关闭</option></select></div>
+      <div class="config-row"><label>Model</label><input type="text" id="cfg-emb-model"></div>
+    </div>
+    <div class="config-section">
+      <h3>其他参数</h3>
+      <div class="config-row"><label>合并阈值</label><input type="number" id="cfg-merge" min="0" max="100"></div>
+      <div style="margin-top:-4px;padding-left:112px;font-size:11px;color:var(--text-muted);">0-100，越高越难合并</div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:8px;">
+      <button class="btn-primary-cfg" onclick="saveConfig(false)">应用（仅运行时）</button>
+      <button class="btn-secondary-cfg" onclick="saveConfig(true)">应用并写入 config.yaml</button>
+    </div>
+    <div id="config-status" style="margin-top:14px;font-size:13px;"></div>
+    <div class="config-section" style="margin-top:24px;">
+      <h3>系统信息</h3>
+      <div id="config-readonly" style="font-size:13px;color:var(--text-secondary);line-height:1.8;">加载中…</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Import View ═══ -->
+<div class="content-area" id="view-import" style="display:none">
+  <div style="max-width:700px;margin:0 auto;">
+    <h3 style="font-family:var(--font-display);color:var(--primary-deep);font-size:18px;">历史对话导入</h3>
+    <p style="color:var(--text-secondary);font-size:13px;margin-top:4px;">支持 Claude JSON、ChatGPT 导出、DeepSeek、Markdown、纯文本</p>
+    <div class="import-zone" id="import-upload-zone">
+      <div style="font-size:28px;margin-bottom:6px;">📁</div>
+      <div>拖拽文件到此处，或 <span style="color:var(--primary);text-decoration:underline;">点击选择</span></div>
+      <input type="file" id="import-file-input" accept=".json,.txt,.md,.jsonl" style="display:none">
+    </div>
+    <label style="font-size:13px;"><input type="checkbox" id="import-preserve-raw"> 保留原文模式</label>
+    <div id="import-progress" style="display:none;margin:16px 0;">
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+        <span id="import-status-text">准备中…</span>
+        <span id="import-progress-text">0/0</span>
+      </div>
+      <div style="background:var(--bg);border-radius:6px;height:10px;overflow:hidden;">
+        <div id="import-progress-bar" style="height:100%;background:var(--primary);border-radius:6px;transition:width .3s;width:0%;"></div>
+      </div>
+      <div style="display:flex;gap:14px;margin-top:6px;font-size:12px;color:var(--text-secondary);">
+        <span>API: <b id="import-api-calls">0</b></span>
+        <span>新建: <b id="import-created">0</b></span>
+        <span>合并: <b id="import-merged">0</b></span>
+        <span>原文: <b id="import-raw">0</b></span>
+      </div>
+      <button id="import-pause-btn" onclick="pauseImport()" style="display:none;margin-top:8px;" class="btn-secondary-cfg">⏸ 暂停</button>
+    </div>
+    <div id="import-errors" style="display:none;margin:10px 0;padding:10px;background:var(--card);border-radius:8px;font-size:12px;color:var(--negative);max-height:100px;overflow-y:auto;"></div>
+    <div style="margin-top:16px;">
+      <h3 style="font-family:var(--font-display);color:var(--primary-deep);font-size:16px;">已导入记忆 <button onclick="loadImportResults()" style="font-size:12px;padding:2px 8px;">刷新</button></h3>
+      <div id="import-results-list" style="max-height:400px;overflow-y:auto;"></div>
+    </div>
+    <hr style="border-color:var(--border);margin:20px 0;">
+    <h3 style="font-family:var(--font-display);color:var(--primary-deep);font-size:16px;">高频模式检测</h3>
+    <button class="btn-primary-cfg" onclick="detectPatterns()" style="margin-top:8px;">🔍 检测</button>
+    <div id="import-patterns" style="margin-top:14px;"></div>
+  </div>
+</div>
+
+<!-- ═══ Settings View ═══ -->
+<div class="content-area" id="view-settings" style="display:none">
+  <div style="max-width:560px;margin:0 auto;">
+    <div class="config-section">
+      <h3>服务状态</h3>
+      <div id="settings-status" style="font-size:13px;color:var(--text-secondary);line-height:2;">加载中…</div>
+      <button class="btn-secondary-cfg" onclick="loadSettingsStatus()" style="margin-top:6px;">刷新状态</button>
+    </div>
+    <div class="config-section">
+      <h3>修改密码</h3>
+      <div id="settings-env-notice" style="display:none;font-size:12px;color:var(--warning);margin-bottom:8px;">⚠ 当前使用环境变量密码</div>
+      <div class="config-row"><label>当前密码</label><input type="password" id="settings-current-pwd"></div>
+      <div class="config-row"><label>新密码</label><input type="password" id="settings-new-pwd" placeholder="至少6位"></div>
+      <div class="config-row"><label>确认密码</label><input type="password" id="settings-new-pwd2"></div>
+      <button class="btn-primary-cfg" onclick="changePassword()" style="margin-top:4px;">修改密码</button>
+      <div id="settings-pwd-msg" style="margin-top:8px;font-size:13px;"></div>
+    </div>
+    <div class="config-section">
+      <h3>宿主机记忆桶目录</h3>
+      <div class="config-row"><label>路径</label><input type="text" id="settings-host-vault" placeholder="/Users/you/Obsidian/..."></div>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:4px;">
+        <button class="btn-primary-cfg" onclick="saveHostVault()">保存到 .env</button>
+        <button class="btn-secondary-cfg" onclick="loadHostVault()">重新加载</button>
+        <span id="settings-host-vault-msg" style="font-size:12px;"></span>
+      </div>
+    </div>
+    <div class="config-section">
+      <h3>账号</h3>
+      <button class="btn-del" onclick="doLogout()">退出登录</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Detail Modal ═══ -->
 <div class="modal-overlay" id="modal-overlay">
-  <div class="modal" id="modal">
-    <div class="modal-header">
-      <div class="modal-title" id="modal-title"></div>
-      <button class="modal-close" id="modal-close">✕</button>
+  <div class="modal-box">
+    <div class="modal-head">
+      <div class="modal-title" id="m-title"></div>
+      <button class="modal-x" onclick="closeModal()">✕</button>
     </div>
     <div class="modal-body">
-      <div class="modal-section">
-        <div class="modal-section-label">内容</div>
-        <div class="modal-content-text" id="modal-content"></div>
-      </div>
-
-      <div class="modal-section">
-        <div class="modal-section-label">重要度</div>
-        <div class="imp-bar-wrap">
-          <div class="imp-bar-track"><div class="imp-bar-fill" id="modal-imp-bar"></div></div>
-          <div class="imp-bar-num" id="modal-imp-num"></div>
-        </div>
-      </div>
-
-      <div class="modal-section">
-        <div class="modal-section-label">元数据</div>
-        <div class="modal-meta-grid" id="modal-meta"></div>
-      </div>
-
-      <div class="modal-section">
-        <div class="modal-section-label">标签</div>
-        <div class="modal-tags-list" id="modal-tags"></div>
-      </div>
-
-      <!-- Edit -->
+      <div class="modal-label">内容</div>
+      <div class="modal-text" id="m-content"></div>
+      <div class="modal-label">重要度</div>
+      <div class="imp-wrap"><div class="imp-track"><div class="imp-fill" id="m-imp-bar"></div></div><div class="imp-num" id="m-imp-num"></div></div>
+      <div class="modal-label">元数据</div>
+      <div class="modal-meta-grid" id="m-meta"></div>
+      <div class="modal-label" style="margin-top:16px;">标签</div>
+      <div class="modal-tags" id="m-tags"></div>
       <div class="edit-section">
-        <div class="modal-section-label">编辑</div>
-        <div class="edit-field">
-          <label class="edit-label">标题</label>
-          <input class="edit-input" id="edit-name" type="text">
-        </div>
-        <div class="edit-field">
-          <label class="edit-label">内容</label>
-          <textarea class="edit-textarea" id="edit-content"></textarea>
-        </div>
-        <div class="edit-field">
-          <label class="edit-label">标签（逗号分隔）</label>
-          <input class="edit-input" id="edit-tags" type="text">
-        </div>
+        <div class="modal-label">编辑</div>
+        <div class="edit-field"><label class="edit-lbl">标题</label><input class="edit-inp" id="e-name" type="text"></div>
+        <div class="edit-field"><label class="edit-lbl">内容</label><textarea class="edit-txt" id="e-content"></textarea></div>
+        <div class="edit-field"><label class="edit-lbl">标签（逗号分隔）</label><input class="edit-inp" id="e-tags" type="text"></div>
       </div>
     </div>
     <div class="modal-actions">
-      <button class="btn btn-danger" id="btn-delete">删除</button>
-      <button class="btn btn-secondary" id="btn-cancel">取消</button>
-      <button class="btn btn-primary" id="btn-save">保存修改</button>
+      <button class="btn btn-del" id="btn-delete">删除</button>
+      <button class="btn btn-sec" onclick="closeModal()">取消</button>
+      <button class="btn btn-pri" id="btn-save">保存修改</button>
     </div>
   </div>
 </div>
 
-<!-- Toast -->
 <div class="toast" id="toast"></div>
 
 <script>
-// ─── State ───
-let allBuckets = [];
-let currentFilter = 'all';
-let searchQuery = '';
-let calYear, calMonth;
-let currentBucket = null;
+/* ═══════════════════════════════════════
+   Auth System (from original)
+   ═══════════════════════════════════════ */
+async function checkAuth(){
+  try{
+    const r=await fetch('/auth/status');
+    const d=await r.json();
+    if(d.setup_needed){
+      document.getElementById('auth-subtitle').textContent='首次设置';
+      document.getElementById('auth-setup-form').style.display='block';
+    } else if(d.authenticated){
+      document.getElementById('auth-overlay').style.display='none';
+    } else {
+      document.getElementById('auth-subtitle').textContent='请输入访问密码';
+      document.getElementById('auth-login-form').style.display='block';
+    }
+  }catch{document.getElementById('auth-overlay').style.display='none';}
+}
+function showAuthError(m){const e=document.getElementById('auth-error');e.textContent=m;e.style.display='block';}
+async function doSetup(){
+  const p1=document.getElementById('auth-setup-pwd').value,p2=document.getElementById('auth-setup-pwd2').value;
+  if(p1.length<6)return showAuthError('密码至少6位');
+  if(p1!==p2)return showAuthError('两次密码不一致');
+  const r=await fetch('/auth/setup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:p1})});
+  if(r.ok)document.getElementById('auth-overlay').style.display='none';
+  else{const d=await r.json();showAuthError(d.detail||'设置失败');}
+}
+async function doLogin(){
+  const pwd=document.getElementById('auth-login-pwd').value;
+  const r=await fetch('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pwd})});
+  if(r.ok){document.getElementById('auth-overlay').style.display='none';init();}
+  else{const d=await r.json();showAuthError(d.detail||'密码错误');}
+}
+async function doLogout(){
+  await fetch('/auth/logout',{method:'POST'});
+  document.getElementById('auth-setup-form').style.display='none';
+  document.getElementById('auth-login-form').style.display='none';
+  document.getElementById('auth-login-form').style.display='block';
+  document.getElementById('auth-subtitle').textContent='请输入访问密码';
+  document.getElementById('auth-error').style.display='none';
+  document.getElementById('auth-overlay').style.display='flex';
+}
+async function authFetch(url,opt){
+  const r=await fetch(url,opt);
+  if(r.status===401){doLogout();return null;}
+  return r;
+}
 
-// ─── API ───
-const API = window.location.origin;
+/* ═══════════════════════════════════════
+   Tab Navigation
+   ═══════════════════════════════════════ */
+const views={list:'view-list',breath:'view-breath',network:'view-network',config:'view-config',import:'view-import',settings:'view-settings'};
+document.querySelectorAll('.nav-tab').forEach(tab=>{
+  tab.addEventListener('click',()=>{
+    document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+    tab.classList.add('active');
+    const t=tab.dataset.tab;
+    Object.values(views).forEach(v=>document.getElementById(v).style.display='none');
+    document.getElementById(views[t]).style.display='';
+    if(t==='network')loadNetwork();
+    if(t==='config')loadConfig();
+    if(t==='import'){pollImportStatus();loadImportResults();}
+    if(t==='settings')loadSettingsStatus();
+  });
+});
 
-async function fetchBuckets() {
-  try {
-    const res = await fetch(`${API}/api/buckets`);
-    if (!res.ok) throw new Error(res.statusText);
-    const data = await res.json();
-    // data could be an array or { buckets: [...] }
-    return Array.isArray(data) ? data : (data.buckets || []);
-  } catch (e) {
-    console.error('Failed to fetch buckets:', e);
-    return [];
+/* ═══════════════════════════════════════
+   Memory List
+   ═══════════════════════════════════════ */
+let allBuckets=[], currentFilter='all', searchQ='', calYear, calMonth, currentBucket=null;
+
+async function fetchBuckets(){
+  try{
+    const r=await authFetch('/api/buckets');
+    if(!r)return[];
+    const d=await r.json();
+    return Array.isArray(d)?d:(d.buckets||[]);
+  }catch(e){return[];}
+}
+
+function bDate(b){return new Date(b.last_active||b.created||Date.now());}
+function bId(b){return b.id||b.bucket_id||b.name;}
+function bName(b){return b.name||'未命名';}
+function bPreview(b){return b.content_preview||b.content||'';}
+function bDomains(b){const d=b.domain||[];return Array.isArray(d)?d:[];}
+function bTags(b){const t=b.tags||[];return Array.isArray(t)?t:[];}
+function bImp(b){return b.importance||5;}
+function bPinned(b){return!!b.pinned;}
+function bFeel(b){return b.type==='feel'||!!b.feel;}
+function bResolved(b){return!!b.resolved;}
+function bDigested(b){return!!b.digested;}
+function bScore(b){return b.score||0;}
+function dateKey(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+function isToday(d){const n=new Date();return d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()&&d.getDate()===n.getDate();}
+function isRecent7(d){return(new Date()-d)<7*864e5;}
+
+function formatDateLabel(d){
+  const now=new Date(), today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  const target=new Date(d.getFullYear(),d.getMonth(),d.getDate());
+  const diff=Math.floor((today-target)/864e5);
+  if(diff===0)return'今天';if(diff===1)return'昨天';if(diff===2)return'前天';
+  if(diff<7)return diff+'天前';
+  const m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0');
+  return d.getFullYear()===now.getFullYear()?`${m}月${day}日`:`${d.getFullYear()}年${m}月${day}日`;
+}
+
+function filterBuckets(bs){
+  let r=bs;
+  if(currentFilter==='pinned')r=r.filter(bPinned);
+  else if(currentFilter==='feel')r=r.filter(bFeel);
+  else if(currentFilter==='recent')r=r.filter(b=>isRecent7(bDate(b)));
+  else if(currentFilter==='important')r=r.filter(b=>bImp(b)>=7);
+  else if(currentFilter==='resolved')r=r.filter(bResolved);
+  else if(currentFilter==='digested')r=r.filter(bDigested);
+  if(searchQ){
+    const q=searchQ.toLowerCase();
+    r=r.filter(b=>(bName(b)+' '+bPreview(b)+' '+bTags(b).join(' ')).toLowerCase().includes(q));
   }
+  return r;
 }
 
-async function fetchBucket(id) {
-  try {
-    const res = await fetch(`${API}/api/bucket/${id}`);
-    if (!res.ok) throw new Error(res.statusText);
-    return await res.json();
-  } catch (e) {
-    console.error('Failed to fetch bucket:', e);
-    return null;
-  }
-}
+function esc(s){const e=document.createElement('span');e.textContent=s;return e.innerHTML;}
 
-async function updateBucket(id, updates) {
-  try {
-    const res = await fetch(`${API}/api/bucket/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updates)
-    });
-    return res.ok;
-  } catch (e) {
-    console.error('Failed to update bucket:', e);
-    return false;
-  }
-}
-
-async function deleteBucket(id) {
-  try {
-    const res = await fetch(`${API}/api/bucket/${id}`, {
-      method: 'DELETE'
-    });
-    return res.ok;
-  } catch (e) {
-    console.error('Failed to delete bucket:', e);
-    return false;
-  }
-}
-
-// ─── Helpers ───
-function parseDate(str) {
-  if (!str) return null;
-  return new Date(str);
-}
-
-function formatDate(d) {
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const target = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const diff = Math.floor((today - target) / 86400000);
-
-  if (diff === 0) return '今天';
-  if (diff === 1) return '昨天';
-  if (diff === 2) return '前天';
-  if (diff < 7) return `${diff} 天前`;
-
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return y === now.getFullYear() ? `${m}月${day}日` : `${y}年${m}月${day}日`;
-}
-
-function dateKey(d) {
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-}
-
-function isToday(d) {
-  const now = new Date();
-  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
-}
-
-function isRecent7(d) {
-  const now = new Date();
-  return (now - d) < 7 * 86400000;
-}
-
-function getBucketDate(b) {
-  return parseDate(b.created_at || b.created || b.date) || new Date();
-}
-
-function getBucketId(b) {
-  return b.bucket_id || b.id || b.name;
-}
-
-function getBucketContent(b) {
-  return b.content || b.text || b.summary || '';
-}
-
-function getBucketTags(b) {
-  const t = b.tags || [];
-  return Array.isArray(t) ? t : t.split(',').map(s => s.trim()).filter(Boolean);
-}
-
-function getBucketDomains(b) {
-  const d = b.domain || b.domains || [];
-  return Array.isArray(d) ? d : [d];
-}
-
-function isPinned(b) { return b.pinned === true || b.pinned === 1; }
-function isFeel(b) { return b.feel === true || b.feel === 1 || (b.type === 'feel'); }
-function isResolved(b) { return b.resolved === true || b.resolved === 1; }
-function getImportance(b) { return b.importance || b.imp || 5; }
-
-// ─── Filter ───
-function filterBuckets(buckets) {
-  let result = buckets;
-
-  switch (currentFilter) {
-    case 'pinned':
-      result = result.filter(isPinned);
-      break;
-    case 'feel':
-      result = result.filter(isFeel);
-      break;
-    case 'recent':
-      result = result.filter(b => isRecent7(getBucketDate(b)));
-      break;
-    case 'important':
-      result = result.filter(b => getImportance(b) >= 7);
-      break;
-    case 'resolved':
-      result = result.filter(isResolved);
-      break;
-  }
-
-  if (searchQuery) {
-    const q = searchQuery.toLowerCase();
-    result = result.filter(b => {
-      const name = (b.name || '').toLowerCase();
-      const content = getBucketContent(b).toLowerCase();
-      const tags = getBucketTags(b).join(' ').toLowerCase();
-      return name.includes(q) || content.includes(q) || tags.includes(q);
-    });
-  }
-
-  return result;
-}
-
-// ─── Render Feed ───
-function renderFeed(buckets) {
-  const feed = document.getElementById('memory-feed');
-  const filtered = filterBuckets(buckets);
-
-  if (filtered.length === 0) {
-    feed.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-icon">🫧</div>
-        <div class="empty-text">${searchQuery ? '没有找到匹配的记忆' : '这里还没有记忆'}</div>
-      </div>`;
+function renderFeed(bs){
+  const feed=document.getElementById('mem-feed');
+  const filtered=filterBuckets(bs);
+  if(!filtered.length){
+    feed.innerHTML=`<div style="text-align:center;padding:50px 20px;color:var(--text-muted);">
+      <div style="font-size:40px;opacity:.4;margin-bottom:8px;">🫧</div>
+      <div style="font-size:14px;">${searchQ?'没有找到匹配的记忆':'这里还没有记忆'}</div></div>`;
     return;
   }
-
-  // Group by date
-  const groups = {};
-  filtered.forEach(b => {
-    const d = getBucketDate(b);
-    const key = dateKey(d);
-    if (!groups[key]) groups[key] = { date: d, buckets: [] };
-    groups[key].buckets.push(b);
+  const groups={};
+  filtered.forEach(b=>{
+    const d=bDate(b), k=dateKey(d);
+    if(!groups[k])groups[k]={date:d,buckets:[]};
+    groups[k].buckets.push(b);
   });
-
-  // Sort groups by date desc
-  const sortedKeys = Object.keys(groups).sort((a, b) => b.localeCompare(a));
-
-  let html = '';
-  sortedKeys.forEach(key => {
-    const g = groups[key];
-    const todayClass = isToday(g.date) ? 'today' : '';
-
-    html += `<div class="date-group ${todayClass}" data-date="${key}">`;
-    html += `<div class="date-header" onclick="toggleGroup(this)">`;
-    html += `<div class="date-dot"></div>`;
-    html += `<div class="date-label">${formatDate(g.date)}</div>`;
-    html += `<div class="date-count">${g.buckets.length} 条</div>`;
-    html += `<div class="date-chevron">▾</div>`;
-    html += `</div>`;
-    html += `<div class="memory-list">`;
-
-    // Sort buckets within group by importance desc
-    g.buckets.sort((a, b) => getImportance(b) - getImportance(a));
-
-    g.buckets.forEach(b => {
-      const id = getBucketId(b);
-      const name = b.name || '未命名记忆';
-      const content = getBucketContent(b);
-      const domains = getBucketDomains(b);
-      const tags = getBucketTags(b);
-      const imp = getImportance(b);
-      const pinned = isPinned(b);
-      const feel = isFeel(b);
-
-      let cardClass = 'memory-card';
-      if (pinned) cardClass += ' pinned';
-      else if (feel) cardClass += ' feel';
-      else if (imp >= 8) cardClass += ' high-imp';
-
-      let badges = '';
-      if (pinned) badges += '<span class="badge pinned-badge">钉选</span>';
-      if (feel) badges += '<span class="badge feel-badge">feel</span>';
-      if (imp >= 8) badges += `<span class="badge imp-badge">imp:${imp}</span>`;
-
-      let domainHtml = domains.filter(Boolean).map(d => `<span class="card-domain">${d}</span>`).join('');
-      let tagHtml = tags.slice(0, 4).map(t => `<span class="card-tag">#${t}</span>`).join('');
-      if (tags.length > 4) tagHtml += `<span class="card-tag">+${tags.length - 4}</span>`;
-
-      html += `<div class="${cardClass}" onclick="openDetail('${id}')">`;
-      html += `<div class="card-top"><div class="card-name">${esc(name)}</div><div class="card-badges">${badges}</div></div>`;
-      if (content) html += `<div class="card-content">${esc(content)}</div>`;
-      html += `<div class="card-meta">${domainHtml}${tagHtml}<span class="card-imp">imp:${imp}</span></div>`;
-      html += `</div>`;
+  const keys=Object.keys(groups).sort((a,b)=>b.localeCompare(a));
+  let h='';
+  keys.forEach(k=>{
+    const g=groups[k];
+    g.buckets.sort((a,b)=>bImp(b)-bImp(a));
+    const today=isToday(g.date)?'is-today':'';
+    h+=`<div class="date-group ${today}" data-date="${k}">`;
+    h+=`<div class="date-header" onclick="this.parentElement.classList.toggle('collapsed')">`;
+    h+=`<div class="date-dot"></div><div class="date-label">${formatDateLabel(g.date)}</div>`;
+    h+=`<div class="date-count">${g.buckets.length} 条</div><div class="date-chevron">▾</div></div>`;
+    h+=`<div class="mem-list">`;
+    g.buckets.forEach(b=>{
+      const id=bId(b), name=bName(b), preview=bPreview(b);
+      const domains=bDomains(b), tags=bTags(b), imp=bImp(b);
+      const pinned=bPinned(b), feel=bFeel(b), resolved=bResolved(b);
+      let cc='mem-card';
+      if(pinned)cc+=' is-pinned';else if(feel)cc+=' is-feel';else if(imp>=8)cc+=' is-high-imp';
+      let badges='';
+      if(pinned)badges+='<span class="mc-badge pin">钉选</span>';
+      if(feel)badges+='<span class="mc-badge feel">feel</span>';
+      if(resolved)badges+='<span class="mc-badge resolved">已沉底</span>';
+      if(imp>=8&&!pinned&&!feel)badges+=`<span class="mc-badge imp">imp:${imp}</span>`;
+      let domH=domains.filter(Boolean).slice(0,2).map(d=>`<span class="mc-domain">${esc(d)}</span>`).join('');
+      let tagH=tags.slice(0,3).map(t=>`<span class="mc-tag">#${esc(t)}</span>`).join('');
+      if(tags.length>3)tagH+=`<span class="mc-tag">+${tags.length-3}</span>`;
+      h+=`<div class="${cc}" onclick="openDetail('${id}')">`;
+      h+=`<div class="mc-top"><div class="mc-name">${esc(name)}</div><div class="mc-badges">${badges}</div></div>`;
+      if(preview)h+=`<div class="mc-preview">${esc(preview)}</div>`;
+      h+=`<div class="mc-meta">${domH}${tagH}<span class="mc-score">${bScore(b).toFixed(2)}</span></div>`;
+      h+=`</div>`;
     });
-
-    html += `</div></div>`;
+    h+=`</div></div>`;
   });
-
-  feed.innerHTML = html;
+  feed.innerHTML=h;
 }
 
-function esc(s) {
-  const el = document.createElement('span');
-  el.textContent = s;
-  return el.innerHTML;
-}
-
-function toggleGroup(header) {
-  header.parentElement.classList.toggle('collapsed');
-}
-
-// ─── Detail Modal ───
-async function openDetail(id) {
-  const bucket = allBuckets.find(b => getBucketId(b) === id);
-  if (!bucket) return;
-  currentBucket = bucket;
-
-  const overlay = document.getElementById('modal-overlay');
-  const name = bucket.name || '未命名';
-  const content = getBucketContent(bucket);
-  const tags = getBucketTags(bucket);
-  const domains = getBucketDomains(bucket);
-  const imp = getImportance(bucket);
-  const d = getBucketDate(bucket);
-
-  document.getElementById('modal-title').textContent = name;
-  document.getElementById('modal-content').textContent = content;
-  document.getElementById('modal-imp-bar').style.width = `${imp * 10}%`;
-  document.getElementById('modal-imp-num').textContent = imp;
-
-  const metaHtml = `
-    <div class="meta-item"><div class="meta-label">创建时间</div><div class="meta-value">${d.toLocaleString('zh-CN')}</div></div>
-    <div class="meta-item"><div class="meta-label">领域</div><div class="meta-value">${domains.filter(Boolean).join(', ') || '—'}</div></div>
-    <div class="meta-item"><div class="meta-label">效价 Valence</div><div class="meta-value">${bucket.valence != null ? bucket.valence : '—'}</div></div>
-    <div class="meta-item"><div class="meta-label">唤醒度 Arousal</div><div class="meta-value">${bucket.arousal != null ? bucket.arousal : '—'}</div></div>
-    <div class="meta-item"><div class="meta-label">状态</div><div class="meta-value">${isPinned(bucket) ? '📌 钉选' : isResolved(bucket) ? '💤 已沉底' : '🟢 活跃'}</div></div>
-    <div class="meta-item"><div class="meta-label">类型</div><div class="meta-value">${isFeel(bucket) ? '💜 Feel' : (bucket.type || 'dynamic')}</div></div>
-  `;
-  document.getElementById('modal-meta').innerHTML = metaHtml;
-
-  document.getElementById('modal-tags').innerHTML = tags.map(t => `<span class="modal-tag">#${esc(t)}</span>`).join('');
-
-  // Fill edit fields
-  document.getElementById('edit-name').value = name;
-  document.getElementById('edit-content').value = content;
-  document.getElementById('edit-tags').value = tags.join(', ');
-
-  overlay.classList.add('open');
-  document.body.style.overflow = 'hidden';
-}
-
-function closeModal() {
-  document.getElementById('modal-overlay').classList.remove('open');
-  document.body.style.overflow = '';
-  currentBucket = null;
-}
-
-document.getElementById('modal-close').onclick = closeModal;
-document.getElementById('btn-cancel').onclick = closeModal;
-document.getElementById('modal-overlay').onclick = (e) => {
-  if (e.target === e.currentTarget) closeModal();
-};
-
-document.getElementById('btn-save').onclick = async () => {
-  if (!currentBucket) return;
-  const id = getBucketId(currentBucket);
-  const newName = document.getElementById('edit-name').value.trim();
-  const newContent = document.getElementById('edit-content').value.trim();
-  const newTags = document.getElementById('edit-tags').value.split(/[,，]/).map(s => s.trim()).filter(Boolean);
-
-  const ok = await updateBucket(id, { name: newName, content: newContent, tags: newTags });
-  if (ok) {
-    showToast('已保存 ✓');
-    closeModal();
-    await reload();
-  } else {
-    showToast('保存失败，后端可能不支持此操作');
-  }
-};
-
-document.getElementById('btn-delete').onclick = async () => {
-  if (!currentBucket) return;
-  if (!confirm('确定要删除这条记忆吗？此操作不可恢复。')) return;
-  const id = getBucketId(currentBucket);
-  const ok = await deleteBucket(id);
-  if (ok) {
-    showToast('已删除');
-    closeModal();
-    await reload();
-  } else {
-    showToast('删除失败');
-  }
-};
-
-// ─── Calendar ───
-function renderCalendar(year, month) {
-  const grid = document.getElementById('cal-grid');
-  const label = document.getElementById('cal-month');
-
-  label.textContent = `${year}年${month + 1}月`;
-
-  // Count memories per day
-  const dayCounts = {};
-  allBuckets.forEach(b => {
-    const d = getBucketDate(b);
-    if (d.getFullYear() === year && d.getMonth() === month) {
-      const day = d.getDate();
-      dayCounts[day] = (dayCounts[day] || 0) + 1;
-    }
-  });
-
-  const maxCount = Math.max(...Object.values(dayCounts), 1);
-  const firstDay = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const today = new Date();
-
-  let html = '';
-  // Empty cells
-  for (let i = 0; i < firstDay; i++) {
-    html += '<div class="calendar-day empty"></div>';
-  }
-
-  for (let d = 1; d <= daysInMonth; d++) {
-    const count = dayCounts[d] || 0;
-    let level = 0;
-    if (count > 0) {
-      const ratio = count / maxCount;
-      if (ratio <= 0.2) level = 1;
-      else if (ratio <= 0.4) level = 2;
-      else if (ratio <= 0.6) level = 3;
-      else if (ratio <= 0.8) level = 4;
-      else level = 5;
-    }
-
-    const isT = year === today.getFullYear() && month === today.getMonth() && d === today.getDate();
-    const hasMem = count > 0;
-
-    html += `<div class="calendar-day level-${level}${isT ? ' today' : ''}${hasMem ? ' has-memories' : ''}"
-      title="${count ? count + ' 条记忆' : ''}"
-      ${hasMem ? `onclick="filterByDate(${year},${month},${d})"` : ''}>${d}</div>`;
-  }
-
-  grid.innerHTML = html;
-}
-
-document.getElementById('cal-prev').onclick = () => {
-  calMonth--;
-  if (calMonth < 0) { calMonth = 11; calYear--; }
-  renderCalendar(calYear, calMonth);
-};
-
-document.getElementById('cal-next').onclick = () => {
-  calMonth++;
-  if (calMonth > 11) { calMonth = 0; calYear++; }
-  renderCalendar(calYear, calMonth);
-};
-
-function filterByDate(y, m, d) {
-  const key = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-  const group = document.querySelector(`.date-group[data-date="${key}"]`);
-  if (group) {
-    group.classList.remove('collapsed');
-    group.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-}
-
-// ─── Quick Stats ───
-function updateStats(buckets) {
-  document.getElementById('stat-total').textContent = buckets.length;
-  document.getElementById('stat-feel').textContent = buckets.filter(isFeel).length;
-  document.getElementById('stat-pinned').textContent = buckets.filter(isPinned).length;
-
-  // Domain frequency
-  const domainCount = {};
-  buckets.forEach(b => {
-    getBucketDomains(b).filter(Boolean).forEach(d => {
-      domainCount[d] = (domainCount[d] || 0) + 1;
-    });
-  });
-  const topDomain = Object.entries(domainCount).sort((a, b) => b[1] - a[1])[0];
-  document.getElementById('qs-domain').textContent = topDomain ? topDomain[0] : '—';
-
-  // Avg importance
-  const imps = buckets.map(getImportance);
-  const avgImp = imps.length ? (imps.reduce((a, b) => a + b, 0) / imps.length).toFixed(1) : '—';
-  document.getElementById('qs-imp').textContent = avgImp;
-
-  // Avg valence
-  const vals = buckets.filter(b => b.valence != null).map(b => parseFloat(b.valence));
-  const avgVal = vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2) : '—';
-  document.getElementById('qs-valence').textContent = avgVal;
-
-  // Unresolved
-  document.getElementById('qs-unresolved').textContent = buckets.filter(b => !isResolved(b) && !isPinned(b)).length;
-}
-
-// ─── Tabs ───
-document.getElementById('tabs').onclick = (e) => {
-  const tab = e.target.closest('.tab');
-  if (!tab) return;
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  tab.classList.add('active');
-  currentFilter = tab.dataset.filter;
+/* ── Filters ── */
+document.getElementById('filter-pills').onclick=e=>{
+  const pill=e.target.closest('.filter-pill');
+  if(!pill)return;
+  document.querySelectorAll('.filter-pill').forEach(p=>p.classList.remove('active'));
+  pill.classList.add('active');
+  currentFilter=pill.dataset.f;
   renderFeed(allBuckets);
 };
 
-// ─── Search ───
+/* ── Search ── */
 let searchTimer;
-document.getElementById('search-input').oninput = (e) => {
+document.getElementById('search-input').oninput=e=>{
   clearTimeout(searchTimer);
-  searchTimer = setTimeout(() => {
-    searchQuery = e.target.value.trim();
-    renderFeed(allBuckets);
-  }, 300);
+  searchTimer=setTimeout(()=>{searchQ=e.target.value.trim();renderFeed(allBuckets);},300);
 };
 
-// ─── Toast ───
-function showToast(msg) {
-  const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.classList.add('show');
-  setTimeout(() => el.classList.remove('show'), 2400);
+/* ── Calendar ── */
+function renderCal(y,m){
+  const grid=document.getElementById('cal-grid'),label=document.getElementById('cal-month');
+  label.textContent=`${y}年${m+1}月`;
+  const dc={};
+  allBuckets.forEach(b=>{
+    const d=bDate(b);
+    if(d.getFullYear()===y&&d.getMonth()===m)dc[d.getDate()]=(dc[d.getDate()]||0)+1;
+  });
+  const mx=Math.max(...Object.values(dc),1);
+  const fd=new Date(y,m,1).getDay(), dim=new Date(y,m+1,0).getDate(), now=new Date();
+  let h='';
+  for(let i=0;i<fd;i++)h+='<div class="cal-day empty"></div>';
+  for(let d=1;d<=dim;d++){
+    const c=dc[d]||0;
+    let lv=0;if(c>0){const r=c/mx;lv=r<=.2?1:r<=.4?2:r<=.6?3:r<=.8?4:5;}
+    const isT=y===now.getFullYear()&&m===now.getMonth()&&d===now.getDate();
+    const hm=c>0;
+    h+=`<div class="cal-day lv${lv}${isT?' today':''}${hm?' has-mem':''}"
+      title="${c?c+' 条':''}"${hm?` onclick="scrollToDate(${y},${m},${d})"`:''}'>${d}</div>`;
+  }
+  grid.innerHTML=h;
+}
+document.getElementById('cal-prev').onclick=()=>{calMonth--;if(calMonth<0){calMonth=11;calYear--;}renderCal(calYear,calMonth);};
+document.getElementById('cal-next').onclick=()=>{calMonth++;if(calMonth>11){calMonth=0;calYear++;}renderCal(calYear,calMonth);};
+function scrollToDate(y,m,d){
+  const k=`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  const g=document.querySelector(`.date-group[data-date="${k}"]`);
+  if(g){g.classList.remove('collapsed');g.scrollIntoView({behavior:'smooth',block:'start'});}
 }
 
-// ─── Init ───
-async function reload() {
-  allBuckets = await fetchBuckets();
-  allBuckets.sort((a, b) => getBucketDate(b) - getBucketDate(a));
-  renderFeed(allBuckets);
-  renderCalendar(calYear, calMonth);
-  updateStats(allBuckets);
+/* ── Stats ── */
+function updateStats(bs){
+  document.getElementById('s-total').textContent=bs.length;
+  document.getElementById('s-feel').textContent=bs.filter(bFeel).length;
+  document.getElementById('s-pinned').textContent=bs.filter(bPinned).length;
+  const dc={};bs.forEach(b=>bDomains(b).filter(Boolean).forEach(d=>dc[d]=(dc[d]||0)+1));
+  const top=Object.entries(dc).sort((a,b)=>b[1]-a[1])[0];
+  document.getElementById('qs-domain').textContent=top?top[0]:'—';
+  const imps=bs.map(bImp);
+  document.getElementById('qs-imp').textContent=imps.length?(imps.reduce((a,b)=>a+b,0)/imps.length).toFixed(1):'—';
+  const vals=bs.filter(b=>b.valence!=null).map(b=>+b.valence);
+  document.getElementById('qs-val').textContent=vals.length?(vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(2):'—';
+  document.getElementById('qs-unresolved').textContent=bs.filter(b=>!bResolved(b)&&!bPinned(b)).length;
 }
 
-async function init() {
-  const now = new Date();
-  calYear = now.getFullYear();
-  calMonth = now.getMonth();
+/* ── Detail Modal ── */
+async function openDetail(id){
+  currentBucket=allBuckets.find(b=>bId(b)===id);
+  if(!currentBucket)return;
+  // Try to fetch full detail
+  try{
+    const r=await authFetch('/api/bucket/'+id);
+    if(r&&r.ok){const full=await r.json();Object.assign(currentBucket,full,full.metadata||{});}
+  }catch{}
+  const b=currentBucket, meta=b.metadata||b;
+  const name=meta.name||b.name||'未命名', content=b.content||bPreview(b);
+  const tags=meta.tags||bTags(b), domains=meta.domain||bDomains(b);
+  const imp=meta.importance||bImp(b), d=bDate(b);
+  document.getElementById('m-title').textContent=name;
+  document.getElementById('m-content').textContent=content;
+  document.getElementById('m-imp-bar').style.width=`${imp*10}%`;
+  document.getElementById('m-imp-num').textContent=imp;
+  document.getElementById('m-meta').innerHTML=`
+    <div class="mm-item"><div class="mm-label">创建时间</div><div class="mm-val">${d.toLocaleString('zh-CN')}</div></div>
+    <div class="mm-item"><div class="mm-label">领域</div><div class="mm-val">${domains.filter(Boolean).join(', ')||'—'}</div></div>
+    <div class="mm-item"><div class="mm-label">效价</div><div class="mm-val">${meta.valence!=null?meta.valence:b.valence!=null?b.valence:'—'}</div></div>
+    <div class="mm-item"><div class="mm-label">唤醒度</div><div class="mm-val">${meta.arousal!=null?meta.arousal:b.arousal!=null?b.arousal:'—'}</div></div>
+    <div class="mm-item"><div class="mm-label">状态</div><div class="mm-val">${bPinned(b)?'📌 钉选':bResolved(b)?'💤 已沉底':'🟢 活跃'}</div></div>
+    <div class="mm-item"><div class="mm-label">权重</div><div class="mm-val">${bScore(b).toFixed(4)}</div></div>`;
+  document.getElementById('m-tags').innerHTML=tags.map(t=>`<span class="modal-tag">#${esc(t)}</span>`).join('');
+  document.getElementById('e-name').value=name;
+  document.getElementById('e-content').value=content;
+  document.getElementById('e-tags').value=tags.join(', ');
+  document.getElementById('modal-overlay').classList.add('open');
+  document.body.style.overflow='hidden';
+}
+function closeModal(){document.getElementById('modal-overlay').classList.remove('open');document.body.style.overflow='';currentBucket=null;}
+document.getElementById('modal-overlay').onclick=e=>{if(e.target===e.currentTarget)closeModal();};
+document.getElementById('btn-save').onclick=async()=>{
+  if(!currentBucket)return;
+  const id=bId(currentBucket);
+  const up={name:document.getElementById('e-name').value.trim(),content:document.getElementById('e-content').value.trim(),
+    tags:document.getElementById('e-tags').value.split(/[,，]/).map(s=>s.trim()).filter(Boolean)};
+  try{
+    const r=await authFetch('/api/bucket/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(up)});
+    if(r&&r.ok){showToast('已保存 ✓');closeModal();await reload();}
+    else showToast('保存失败，后端可能不支持此操作');
+  }catch{showToast('保存失败');}
+};
+document.getElementById('btn-delete').onclick=async()=>{
+  if(!currentBucket||!confirm('确定删除？不可恢复。'))return;
+  try{
+    const r=await authFetch('/api/bucket/'+bId(currentBucket),{method:'DELETE'});
+    if(r&&r.ok){showToast('已删除');closeModal();await reload();}
+    else showToast('删除失败');
+  }catch{showToast('删除失败');}
+};
 
-  allBuckets = await fetchBuckets();
-  allBuckets.sort((a, b) => getBucketDate(b) - getBucketDate(a));
+/* ═══════════════════════════════════════
+   Breath Simulation (from original)
+   ═══════════════════════════════════════ */
+async function runBreathDebug(){
+  const q=document.getElementById('breath-query').value.trim();
+  const v=document.getElementById('breath-valence').value;
+  const a=document.getElementById('breath-arousal').value;
+  const results=document.getElementById('breath-results');
+  const info=document.getElementById('breath-info');
+  results.innerHTML='<div class="loading-wrap"><div class="spinner"></div>计算中…</div>';
+  let url='/api/breath-debug?q='+encodeURIComponent(q);
+  if(v)url+='&valence='+v;if(a)url+='&arousal='+a;
+  try{
+    const res=await authFetch(url);if(!res)return;
+    const data=await res.json();
+    const w=data.weights;
+    info.style.display='';
+    info.innerHTML=`<strong>权重</strong> topic=<code>${w.topic}</code> emotion=<code>${w.emotion}</code> time=<code>${w.time}</code> importance=<code>${w.importance}</code> | 阈值=<code>${data.threshold}</code> | 候选=<code>${data.total_candidates}</code> → 通过=<code>${data.passed_count}</code>`;
+    if(!data.results.length){results.innerHTML='<div class="loading-wrap">无结果</div>';return;}
+    const barC={topic:'var(--primary-deep)',emotion:'#B07AAF',time:'#C4A84E',importance:'var(--positive)'};
+    results.innerHTML=data.results.map((r,i)=>{
+      const s=r.scores;
+      const bars=Object.entries(s).map(([k,v])=>{
+        const pct=Math.round(v*100);
+        return`<div class="score-bar-group"><div class="score-bar-label"><span>${k}×${r.weights[k]}</span><span>${v.toFixed(2)}</span></div><div class="score-bar-track"><div class="score-bar-fill" style="width:${pct}%;background:${barC[k]||'var(--primary)'}"></div></div></div>`;
+      }).join('');
+      const icon=r.pinned?'📌':r.resolved?'💤':r.type==='feel'?'💜':'💭';
+      return`<div class="score-row"><span class="rank">${String(i+1).padStart(2,'0')}</span><span class="name">${icon} ${esc(r.name)}</span><div class="score-bars">${bars}</div><span class="score-final ${r.passed_threshold?'score-pass':'score-fail'}">${r.normalized.toFixed(1)}</span></div>`;
+    }).join('');
+  }catch(e){results.innerHTML='<div class="loading-wrap">请求失败: '+e.message+'</div>';}
+}
+document.getElementById('breath-query').onkeydown=e=>{if(e.key==='Enter')runBreathDebug();};
 
-  document.getElementById('loading').style.display = 'none';
-  renderFeed(allBuckets);
-  renderCalendar(calYear, calMonth);
-  updateStats(allBuckets);
+/* ═══════════════════════════════════════
+   Network (from original)
+   ═══════════════════════════════════════ */
+async function loadNetwork(){
+  const canvas=document.getElementById('network-canvas');
+  const ctx=canvas.getContext('2d');
+  canvas.width=canvas.offsetWidth*devicePixelRatio;
+  canvas.height=canvas.offsetHeight*devicePixelRatio;
+  ctx.scale(devicePixelRatio,devicePixelRatio);
+  const W=canvas.offsetWidth,H=canvas.offsetHeight;
+  ctx.fillStyle='#FFFFFF';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='var(--text-muted)';ctx.font='14px DM Sans,sans-serif';ctx.textAlign='center';
+  ctx.fillText('加载中…',W/2,H/2);
+  try{
+    const r=await authFetch('/api/network');if(!r)return;
+    const data=await r.json();drawNetwork(ctx,W,H,data);
+  }catch(e){ctx.fillText('加载失败',W/2,H/2+24);}
+}
+function drawNetwork(ctx,W,H,data){
+  const{nodes,edges}=data;
+  if(!nodes.length){ctx.fillStyle='#7E7694';ctx.fillText('没有记忆桶',W/2,H/2);return;}
+  const pos={};const cx=W/2,cy=H/2;
+  nodes.forEach((n,i)=>{const a=(i/nodes.length)*Math.PI*2,r=Math.min(W,H)*0.35;
+    pos[n.id]={x:cx+Math.cos(a)*r+(Math.random()-0.5)*50,y:cy+Math.sin(a)*r+(Math.random()-0.5)*50};});
+  for(let it=0;it<80;it++){
+    for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){
+      const a=pos[nodes[i].id],b=pos[nodes[j].id];let dx=b.x-a.x,dy=b.y-a.y;
+      const d=Math.max(1,Math.sqrt(dx*dx+dy*dy)),f=800/(d*d);dx=dx/d*f;dy=dy/d*f;
+      a.x-=dx;a.y-=dy;b.x+=dx;b.y+=dy;}
+    edges.forEach(e=>{const a=pos[e.source],b=pos[e.target];if(!a||!b)return;
+      let dx=b.x-a.x,dy=b.y-a.y;const d=Math.sqrt(dx*dx+dy*dy);
+      const f=(d-100)*0.01*(e.similarity||0.5);dx=dx/Math.max(1,d)*f;dy=dy/Math.max(1,d)*f;
+      a.x+=dx;a.y+=dy;b.x-=dx;b.y-=dy;});
+    nodes.forEach(n=>{const p=pos[n.id];p.x+=(cx-p.x)*0.01;p.y+=(cy-p.y)*0.01;});
+  }
+  ctx.fillStyle='#FFFFFF';ctx.fillRect(0,0,W,H);
+  edges.forEach(e=>{const a=pos[e.source],b=pos[e.target];if(!a||!b)return;
+    ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);
+    ctx.strokeStyle=`rgba(155,142,196,${e.similarity*0.35})`;ctx.lineWidth=Math.max(0.5,e.similarity*2);ctx.stroke();});
+  const colors={dynamic:'#6E5BA0',permanent:'#C4A84E',feel:'#B07AAF',archived:'#B0A8C0'};
+  nodes.forEach(n=>{const p=pos[n.id];const r=Math.max(4,Math.min(14,n.score*0.8));const c=colors[n.type]||'#6E5BA0';
+    ctx.beginPath();ctx.arc(p.x,p.y,r+4,0,Math.PI*2);ctx.fillStyle=c+'15';ctx.fill();
+    ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.fillStyle=n.resolved?c+'70':c;ctx.fill();
+    if(n.pinned){ctx.strokeStyle='#C4A84E';ctx.lineWidth=2;ctx.stroke();}
+    const nm=n.name.length>10?n.name.slice(0,10)+'…':n.name;
+    ctx.fillStyle='#3A3150';ctx.font='11px DM Sans,sans-serif';ctx.textAlign='center';ctx.fillText(nm,p.x,p.y+r+14);});
 }
 
-init();
+/* ═══════════════════════════════════════
+   Config (from original)
+   ═══════════════════════════════════════ */
+async function loadConfig(){
+  try{
+    const r=await authFetch('/api/config');if(!r)return;const c=await r.json();
+    document.getElementById('cfg-dehy-model').value=c.dehydration.model||'';
+    document.getElementById('cfg-dehy-url').value=c.dehydration.base_url||'';
+    document.getElementById('cfg-dehy-key').placeholder='当前: '+(c.dehydration.api_key_masked||'未设置');
+    document.getElementById('cfg-dehy-key').value='';
+    document.getElementById('cfg-dehy-maxtokens').value=c.dehydration.max_tokens||1024;
+    document.getElementById('cfg-dehy-temp').value=c.dehydration.temperature||0.1;
+    document.getElementById('cfg-emb-enabled').value=c.embedding.enabled?'true':'false';
+    document.getElementById('cfg-emb-model').value=c.embedding.model||'';
+    document.getElementById('cfg-merge').value=c.merge_threshold||75;
+    document.getElementById('config-readonly').innerHTML=`Transport: <b>${c.transport}</b><br>Buckets dir: <b>${c.buckets_dir}</b>`;
+  }catch(e){document.getElementById('config-status').innerHTML=`<span style="color:var(--negative)">加载失败: ${e.message}</span>`;}
+}
+async function saveConfig(persist){
+  const body={dehydration:{model:document.getElementById('cfg-dehy-model').value,base_url:document.getElementById('cfg-dehy-url').value,
+    max_tokens:parseInt(document.getElementById('cfg-dehy-maxtokens').value)||1024,
+    temperature:parseFloat(document.getElementById('cfg-dehy-temp').value)||0.1},
+    embedding:{enabled:document.getElementById('cfg-emb-enabled').value==='true',model:document.getElementById('cfg-emb-model').value},
+    merge_threshold:parseInt(document.getElementById('cfg-merge').value)||75,persist};
+  const kv=document.getElementById('cfg-dehy-key').value;if(kv)body.dehydration.api_key=kv;
+  try{
+    const r=await authFetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!r)return;const res=await r.json();
+    document.getElementById('config-status').innerHTML=res.ok?
+      `<span style="color:var(--positive)">✓ 已更新: ${res.updated.join(', ')}</span>`:
+      `<span style="color:var(--negative)">✗ ${res.error||'未知错误'}</span>`;
+    loadConfig();
+  }catch(e){document.getElementById('config-status').innerHTML=`<span style="color:var(--negative)">✗ ${e.message}</span>`;}
+}
+
+/* ═══════════════════════════════════════
+   Import (from original)
+   ═══════════════════════════════════════ */
+const uploadZone=document.getElementById('import-upload-zone');
+const fileInput=document.getElementById('import-file-input');
+uploadZone.onclick=()=>fileInput.click();
+uploadZone.ondragover=e=>{e.preventDefault();uploadZone.style.borderColor='var(--primary)';};
+uploadZone.ondragleave=()=>{uploadZone.style.borderColor='var(--border)';};
+uploadZone.ondrop=e=>{e.preventDefault();uploadZone.style.borderColor='var(--border)';if(e.dataTransfer.files.length)startImport(e.dataTransfer.files[0]);};
+fileInput.onchange=()=>{if(fileInput.files.length)startImport(fileInput.files[0]);};
+
+async function startImport(file){
+  const raw=document.getElementById('import-preserve-raw').checked;
+  const fd=new FormData();fd.append('file',file);
+  try{const r=await authFetch('/api/import/upload?preserve_raw='+(raw?'1':'0'),{method:'POST',body:fd});
+    if(!r)return;const d=await r.json();if(d.error){alert('导入失败: '+d.error);return;}
+    document.getElementById('import-progress').style.display='';
+    document.getElementById('import-pause-btn').style.display='';
+    pollImportStatus();
+  }catch(e){alert('上传失败: '+e.message);}
+}
+
+let importPollTimer;
+async function pollImportStatus(){
+  clearInterval(importPollTimer);
+  try{const r=await authFetch('/api/import/status');if(!r)return;updateImportUI(await r.json());
+    if((await (await authFetch('/api/import/status')).json()).status==='running')
+      importPollTimer=setInterval(async()=>{try{const r2=await authFetch('/api/import/status');if(r2)updateImportUI(await r2.json());}catch{}},2000);
+  }catch{}
+}
+function updateImportUI(s){
+  const prog=document.getElementById('import-progress');
+  if(s.status==='idle'){prog.style.display='none';return;}
+  prog.style.display='';
+  const pct=s.total_chunks?Math.round(s.processed/s.total_chunks*100):0;
+  document.getElementById('import-progress-bar').style.width=pct+'%';
+  document.getElementById('import-progress-text').textContent=s.processed+'/'+s.total_chunks;
+  document.getElementById('import-api-calls').textContent=s.api_calls;
+  document.getElementById('import-created').textContent=s.memories_created;
+  document.getElementById('import-merged').textContent=s.memories_merged;
+  document.getElementById('import-raw').textContent=s.memories_raw;
+  const sm={running:'⏳ 导入中…',paused:'⏸ 已暂停',completed:'✅ 完成',error:'❌ 出错'};
+  document.getElementById('import-status-text').textContent=sm[s.status]||s.status;
+  document.getElementById('import-pause-btn').style.display=s.status==='running'?'':'none';
+  if(s.status!=='running')clearInterval(importPollTimer);
+  if(s.status==='completed')loadImportResults();
+  const errDiv=document.getElementById('import-errors');
+  if(s.errors&&s.errors.length){errDiv.style.display='';errDiv.textContent=s.errors.join('\n');}
+  else errDiv.style.display='none';
+}
+async function pauseImport(){try{await authFetch('/api/import/pause',{method:'POST'});}catch{}}
+
+async function loadImportResults(){
+  const c=document.getElementById('import-results-list');
+  c.innerHTML='<div class="loading-wrap"><div class="spinner"></div></div>';
+  try{const r=await authFetch('/api/import/results?limit=30');if(!r)return;const d=await r.json();
+    if(!d.buckets||!d.buckets.length){c.innerHTML='<p style="color:var(--text-muted)">暂无</p>';return;}
+    c.innerHTML=d.buckets.map(b=>`<div id="ir-${b.id}" style="background:var(--card);border-radius:12px;padding:12px;margin:6px 0;border:1px solid var(--border-soft);">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <b>${b.name||b.id}</b><span style="font-size:10px;color:var(--text-muted);">${b.type}|${(b.domain||[]).join(',')}|imp:${b.importance}</span></div>
+      <p style="font-size:12px;margin:4px 0;white-space:pre-wrap;">${b.content}</p>
+      <div style="font-size:10px;color:var(--text-muted);margin-bottom:4px;">${(b.tags||[]).map(t=>'#'+t).join(' ')}</div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn-secondary-cfg" style="padding:4px 10px;font-size:11px;" onclick="reviewAction('${b.id}','pin')">📌 固定</button>
+        <button class="btn-secondary-cfg" style="padding:4px 10px;font-size:11px;" onclick="reviewAction('${b.id}','important')">⭐ 重要</button>
+        <button class="btn-secondary-cfg" style="padding:4px 10px;font-size:11px;" onclick="reviewAction('${b.id}','noise')">🗑 噪声</button>
+        <button class="btn btn-del" style="padding:4px 10px;font-size:11px;" onclick="if(confirm('确定？'))reviewAction('${b.id}','delete')">✕ 删除</button>
+      </div></div>`).join('');
+  }catch(e){c.innerHTML='<p style="color:var(--negative)">加载失败</p>';}
+}
+async function reviewAction(bid,action){
+  try{await authFetch('/api/import/review',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({decisions:[{bucket_id:bid,action}]})});
+    const card=document.getElementById('ir-'+bid);if(card)card.style.display='none';
+  }catch{}
+}
+async function detectPatterns(){
+  const c=document.getElementById('import-patterns');c.innerHTML='<div class="loading-wrap"><div class="spinner"></div></div>';
+  try{const r=await authFetch('/api/import/patterns');if(!r)return;const d=await r.json();
+    if(!d.patterns||!d.patterns.length){c.innerHTML='<p style="color:var(--text-muted)">未检测到</p>';return;}
+    c.innerHTML=d.patterns.map(p=>`<div style="background:var(--card);border-radius:12px;padding:12px;margin:6px 0;border:1px solid var(--border-soft);">
+      <div style="display:flex;justify-content:space-between;"><b>${p.pattern_name}</b><span style="font-size:11px;color:var(--text-muted);">出现 ${p.count} 次</span></div>
+      <p style="font-size:12px;margin:4px 0;">${p.pattern_content}</p></div>`).join('');
+  }catch(e){c.innerHTML='<p style="color:var(--negative)">检测失败</p>';}
+}
+
+/* ═══════════════════════════════════════
+   Settings (from original)
+   ═══════════════════════════════════════ */
+async function loadSettingsStatus(){
+  const el=document.getElementById('settings-status');
+  try{const r=await authFetch('/api/status');if(!r)return;const d=await r.json();
+    if(d.using_env_password)document.getElementById('settings-env-notice').style.display='block';
+    el.innerHTML=`<b>版本</b>：${d.version}<br><b>Bucket 总数</b>：${d.buckets?.total??0}（永久:${d.buckets?.permanent??0} / 动态:${d.buckets?.dynamic??0} / 归档:${d.buckets?.archive??0}）<br><b>衰减引擎</b>：${d.decay_engine}<br><b>向量搜索</b>：${d.embedding_enabled?'已启用':'未启用'}`;
+  }catch(e){el.textContent='加载失败: '+e;}
+  loadHostVault();
+}
+async function loadHostVault(){
+  const inp=document.getElementById('settings-host-vault'),msg=document.getElementById('settings-host-vault-msg');
+  if(!inp)return;msg.textContent='';
+  try{const r=await authFetch('/api/host-vault');if(!r)return;const d=await r.json();
+    inp.value=d.value||'';
+    if(d.source==='env'){msg.textContent='当前由环境变量提供';msg.style.color='var(--warning)';}
+    else if(d.source==='file'){msg.textContent='来自 '+(d.env_file||'.env');}
+    else msg.textContent='尚未设置';
+  }catch(e){msg.style.color='var(--negative)';msg.textContent='加载失败';}
+}
+async function saveHostVault(){
+  const inp=document.getElementById('settings-host-vault'),msg=document.getElementById('settings-host-vault-msg');
+  const val=inp.value.trim();msg.textContent='保存中…';
+  try{const r=await authFetch('/api/host-vault',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({value:val})});
+    if(!r)return;const d=await r.json();
+    if(r.ok){msg.style.color='var(--positive)';msg.textContent='已保存（需重启容器生效）';}
+    else{msg.style.color='var(--negative)';msg.textContent=d.error||'保存失败';}
+  }catch(e){msg.style.color='var(--negative)';msg.textContent='保存失败';}
+}
+async function changePassword(){
+  const cur=document.getElementById('settings-current-pwd').value,nw=document.getElementById('settings-new-pwd').value,nw2=document.getElementById('settings-new-pwd2').value;
+  const msg=document.getElementById('settings-pwd-msg');
+  if(nw.length<6){msg.style.color='var(--negative)';msg.textContent='新密码至少6位';return;}
+  if(nw!==nw2){msg.style.color='var(--negative)';msg.textContent='两次不一致';return;}
+  const r=await authFetch('/auth/change-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({current:cur,new:nw})});
+  if(!r)return;
+  if(r.ok){msg.style.color='var(--positive)';msg.textContent='密码修改成功';
+    ['settings-current-pwd','settings-new-pwd','settings-new-pwd2'].forEach(id=>document.getElementById(id).value='');}
+  else{const d=await r.json();msg.style.color='var(--negative)';msg.textContent=d.detail||'修改失败';}
+}
+
+/* ═══════════════════════════════════════
+   Toast & Init
+   ═══════════════════════════════════════ */
+function showToast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400);}
+
+async function reload(){
+  allBuckets=await fetchBuckets();
+  allBuckets.sort((a,b)=>bDate(b)-bDate(a));
+  renderFeed(allBuckets);renderCal(calYear,calMonth);updateStats(allBuckets);
+}
+
+async function init(){
+  const now=new Date();calYear=now.getFullYear();calMonth=now.getMonth();
+  allBuckets=await fetchBuckets();
+  allBuckets.sort((a,b)=>bDate(b)-bDate(a));
+  document.getElementById('mem-feed').innerHTML='';
+  renderFeed(allBuckets);renderCal(calYear,calMonth);updateStats(allBuckets);
+}
+
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
+checkAuth().then(()=>init());
 </script>
 </body>
 </html>
