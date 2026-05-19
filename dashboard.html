@@ -524,6 +524,7 @@ body {
         <div class="search-wrap">
           <input class="search-input" type="text" id="search-input" placeholder="搜索记忆…">
         </div>
+        <button class="logout-btn" id="theme-toggle" onclick="toggleTheme()" style="font-size:14px;">🌙</button>
         <button class="logout-btn" onclick="doLogout()">退出</button>
       </div>
     </div>
@@ -1317,6 +1318,20 @@ async function init(){
 }
 
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
+/* ── Theme Toggle ── */
+function toggleTheme(){
+  const html=document.documentElement;
+  const isDark=html.getAttribute('data-theme')==='dark';
+  html.setAttribute('data-theme',isDark?'light':'dark');
+  document.getElementById('theme-toggle').textContent=isDark?'🌙':'☀️';
+  localStorage.setItem('ob-theme',isDark?'light':'dark');
+}
+(function(){
+  const saved=localStorage.getItem('ob-theme');
+  if(saved==='dark'){document.documentElement.setAttribute('data-theme','dark');
+    setTimeout(()=>{const b=document.getElementById('theme-toggle');if(b)b.textContent='☀️';},0);}
+})();
+
 checkAuth().then(()=>init());
 </script>
 </body>
