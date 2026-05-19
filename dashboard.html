@@ -156,6 +156,23 @@ body {
   box-shadow:0 2px 8px rgba(155,142,196,0.3);
 }
 
+/* ── View Mode Toggle ── */
+.view-toggle { display:flex; gap:4px; margin-left:auto; }
+.view-toggle-btn {
+  padding:5px 10px; border-radius:8px; font-size:13px;
+  background:var(--card); border:1px solid var(--border); color:var(--text-secondary);
+  cursor:pointer; transition:var(--transition); line-height:1;
+}
+.view-toggle-btn.active { background:var(--primary); color:white; border-color:var(--primary); }
+
+/* ── Card Grid View ── */
+.card-grid {
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr));
+  gap:12px;
+}
+.card-grid .mem-card { height:100%; display:flex; flex-direction:column; }
+.card-grid .mc-preview { -webkit-line-clamp:3; flex:1; }
+
 /* ── Date Groups ── */
 .date-group { margin-bottom:20px; }
 .date-header {
@@ -551,6 +568,10 @@ body {
         <div class="filter-pill" data-f="important">⭐ 高重要度</div>
         <div class="filter-pill" data-f="resolved">💤 已沉底</div>
         <div class="filter-pill" data-f="digested">🌿 已消化</div>
+        <div class="view-toggle">
+          <button class="view-toggle-btn active" data-view="list" onclick="setViewMode('list')">☰</button>
+          <button class="view-toggle-btn" data-view="grid" onclick="setViewMode('grid')">⊞</button>
+        </div>
       </div>
       <div id="mem-feed">
         <div class="loading-wrap"><div class="spinner"></div><div>正在唤醒记忆…</div></div>
@@ -825,7 +846,7 @@ document.querySelectorAll('.nav-tab').forEach(tab=>{
 /* ═══════════════════════════════════════
    Memory List
    ═══════════════════════════════════════ */
-let allBuckets=[], currentFilter='all', searchQ='', calYear, calMonth, currentBucket=null;
+let allBuckets=[], currentFilter='all', searchQ='', calYear, calMonth, currentBucket=null, viewMode='list';
 
 async function fetchBuckets(){
   try{
@@ -896,6 +917,28 @@ function renderFeed(bs){
   });
   const keys=Object.keys(groups).sort((a,b)=>b.localeCompare(a));
   let h='';
+  if(viewMode==='grid'){
+    h='<div class="card-grid">';
+    keys.forEach(k=>groups[k].buckets.forEach(b=>{
+      const id=bId(b),name=bName(b),preview=bPreview(b),domains=bDomains(b),tags=bTags(b),imp=bImp(b);
+      const pinned=bPinned(b),feel=bFeel(b),resolved=bResolved(b);
+      let cc='mem-card';if(pinned)cc+=' is-pinned';else if(feel)cc+=' is-feel';else if(imp>=8)cc+=' is-high-imp';
+      let badges='';if(pinned)badges+='<span class="mc-badge pin">钉选</span>';
+      if(feel)badges+='<span class="mc-badge feel">feel</span>';
+      if(resolved)badges+='<span class="mc-badge resolved">已沉底</span>';
+      let domH=domains.filter(Boolean).slice(0,2).map(d=>`<span class="mc-domain">${esc(d)}</span>`).join('');
+      let tagH=tags.slice(0,3).map(t=>`<span class="mc-tag">#${esc(t)}</span>`).join('');
+      const dk=dateKey(bDate(b));
+      h+=`<div class="${cc}" onclick="openDetail('${id}')">`;
+      h+=`<div class="mc-top"><div class="mc-name">${esc(name)}</div><div class="mc-badges">${badges}</div></div>`;
+      if(preview)h+=`<div class="mc-preview">${esc(preview)}</div>`;
+      h+=`<div class="mc-meta">${domH}${tagH}<span class="mc-score">${formatDateLabel(bDate(b))}</span></div>`;
+      h+=`</div>`;
+    }));
+    h+='</div>';
+    feed.innerHTML=h;
+    return;
+  }
   keys.forEach(k=>{
     const g=groups[k];
     g.buckets.sort((a,b)=>bImp(b)-bImp(a));
@@ -1086,6 +1129,13 @@ async function runBreathDebug(){
   }catch(e){results.innerHTML='<div class="loading-wrap">请求失败: '+e.message+'</div>';}
 }
 document.getElementById('breath-query').onkeydown=e=>{if(e.key==='Enter')runBreathDebug();};
+
+/* ── View Mode ── */
+function setViewMode(m){
+  viewMode=m;
+  document.querySelectorAll('.view-toggle-btn').forEach(b=>b.classList.toggle('active',b.dataset.view===m));
+  renderFeed(allBuckets);
+}
 
 /* ═══════════════════════════════════════
    Network (from original)
