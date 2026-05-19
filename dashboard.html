@@ -648,10 +648,10 @@ body {
   <div class="breath-controls">
     <label>Query</label>
     <input type="text" id="breath-query" placeholder="关键词…" style="width:200px">
-    <label>Valence</label>
-    <input type="number" id="breath-valence" placeholder="0~1" min="0" max="1" step="0.1" style="width:70px">
-    <label>Arousal</label>
-    <input type="number" id="breath-arousal" placeholder="0~1" min="0" max="1" step="0.1" style="width:70px">
+    <label>Valence <span id="breath-valence-val" style="color:var(--primary);font-weight:600;">—</span></label>
+    <input type="range" id="breath-valence" min="0" max="1" step="0.05" value="0.5" style="width:120px;accent-color:var(--primary);" oninput="document.getElementById('breath-valence-val').textContent=this.value">
+    <label>Arousal <span id="breath-arousal-val" style="color:var(--primary);font-weight:600;">—</span></label>
+    <input type="range" id="breath-arousal" min="0" max="1" step="0.05" value="0.5" style="width:120px;accent-color:var(--primary);" oninput="document.getElementById('breath-arousal-val').textContent=this.value">
     <button class="btn-primary-cfg" onclick="runBreathDebug()">模拟 Breath</button>
   </div>
   <div class="breath-info" id="breath-info" style="display:none"></div>
