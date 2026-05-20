@@ -966,7 +966,7 @@ async function fetchBuckets(){
   }catch(e){return[];}
 }
 
-function bDate(b){return new Date(b.last_active||b.created||Date.now());}
+function bDate(b){const r=b.last_active||b.created;if(!r)return new Date();if(typeof r==='string'&&!/[Z+]/.test(r.slice(-6)))return new Date(r+'Z');return new Date(r);}
 function bId(b){return b.id||b.bucket_id||b.name;}
 function bName(b){return b.name||'未命名';}
 function bPreview(b){return b.content_preview||b.content||'';}
