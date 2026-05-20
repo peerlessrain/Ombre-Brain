@@ -445,8 +445,15 @@ body {
 .tl-month-header {
   font-family:var(--font-display); font-size:20px; font-weight:600;
   color:var(--primary-deep); padding:16px 0 8px; border-bottom:2px solid var(--border);
-  margin-bottom:12px;
+  margin-bottom:12px; cursor:pointer; user-select:none;
+  display:flex; align-items:center; justify-content:space-between;
 }
+.tl-month-header .tl-chevron { font-size:14px; color:var(--text-muted); transition:transform var(--transition); }
+.tl-month-group.collapsed .tl-month-header .tl-chevron { transform:rotate(-90deg); }
+.tl-month-group.collapsed .tl-month-body { display:none; }
+.tl-month-group.collapsed .tl-month-peek { display:block; }
+.tl-month-peek { display:none; padding:8px 0 16px; font-size:12px; color:var(--text-secondary); }
+.tl-month-peek span { display:inline-block; margin-right:16px; }
 .tl-day-group { position:relative; padding-left:28px; margin-bottom:16px; }
 .tl-day-group::before {
   content:''; position:absolute; left:7px; top:28px; bottom:0;
@@ -459,8 +466,14 @@ body {
   box-shadow:0 0 0 2px var(--primary-soft);
 }
 .tl-day-group.is-today .tl-day-dot { background:var(--primary); box-shadow:0 0 0 2px var(--primary),0 0 8px rgba(155,142,196,0.4); }
-.tl-day-label { font-size:13px; font-weight:600; color:var(--text); margin-bottom:8px; }
-.tl-day-label span { color:var(--text-muted); font-weight:400; margin-left:6px; font-size:11px; }
+.tl-day-label { font-size:13px; font-weight:600; color:var(--text); margin-bottom:8px; cursor:pointer; user-select:none; display:flex; align-items:center; gap:6px; }
+.tl-day-label span { color:var(--text-muted); font-weight:400; font-size:11px; }
+.tl-day-label .tl-chevron { font-size:12px; color:var(--text-muted); transition:transform var(--transition); margin-left:auto; }
+.tl-day-group.tl-collapsed .tl-day-label .tl-chevron { transform:rotate(-90deg); }
+.tl-day-group.tl-collapsed .tl-items { display:none; }
+.tl-day-group.tl-collapsed .tl-day-peek { display:flex; }
+.tl-day-peek { display:none; gap:12px; padding:4px 0; font-size:12px; color:var(--text-secondary); flex-wrap:wrap; }
+.tl-day-peek-item { background:var(--bg); padding:3px 10px; border-radius:6px; max-width:280px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .tl-items { display:flex; flex-direction:column; gap:6px; }
 .tl-item {
   background:var(--card); border-radius:var(--radius-sm); padding:10px 14px;
@@ -473,6 +486,20 @@ body {
   display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; overflow:hidden; }
 .tl-item-badges { display:inline; margin-left:6px; }
 
+/* ── Section Headers (pinned/important groups) ── */
+.section-header {
+  display:flex; align-items:center; gap:8px; padding:10px 0 6px;
+  font-size:13px; font-weight:600; color:var(--text-secondary);
+  border-bottom:1px solid var(--border-soft); margin-bottom:8px; margin-top:12px;
+  cursor:pointer; user-select:none;
+}
+.section-header:first-child { margin-top:0; }
+.section-header .sh-icon { font-size:14px; }
+.section-header .sh-count { font-size:11px; color:var(--text-muted); font-weight:400; margin-left:auto; }
+.section-header .sh-chevron { font-size:12px; color:var(--text-muted); transition:transform var(--transition); }
+.section-group.collapsed .section-header .sh-chevron { transform:rotate(-90deg); }
+.section-group.collapsed .section-body { display:none; }
+
 /* ── Responsive ── */
 @media(max-width:840px) {
   .memory-layout { grid-template-columns:1fr; }
@@ -482,6 +509,7 @@ body {
   .search-input:focus { width:200px; }
   .modal-box { max-width:100%; border-radius:var(--radius-lg); }
   .modal-meta-grid { grid-template-columns:1fr; }
+  .card-grid { grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); }
 }
 @media(max-width:480px) {
   .header { padding:14px 0 0; }
@@ -492,6 +520,9 @@ body {
   .mem-card { padding:12px 14px; }
   .config-row { flex-wrap:wrap; }
   .config-row label { width:100%; }
+  .card-grid { grid-template-columns:1fr 1fr; gap:8px; }
+  .card-grid .mc-name { font-size:13px; }
+  .card-grid .mc-preview { font-size:11px; -webkit-line-clamp:2; }
 }
 
 ::-webkit-scrollbar { width:5px; }
@@ -744,7 +775,7 @@ body {
 
 <!-- ═══ Timeline View ═══ -->
 <div class="content-area" id="view-timeline" style="display:none">
-  <div style="max-width:700px;margin:0 auto;">
+  <div style="max-width:960px;margin:0 auto;">
     <div style="display:flex;gap:8px;margin-bottom:20px;">
       <button class="filter-pill active" data-tl="day" onclick="tlMode='day';renderTimeline();document.querySelectorAll('[data-tl]').forEach(b=>b.classList.toggle('active',b.dataset.tl==='day'))">按日</button>
       <button class="filter-pill" data-tl="month" onclick="tlMode='month';renderTimeline();document.querySelectorAll('[data-tl]').forEach(b=>b.classList.toggle('active',b.dataset.tl==='month'))">按月</button>
@@ -918,18 +949,25 @@ function bFeel(b){return b.type==='feel'||!!b.feel;}
 function bResolved(b){return!!b.resolved;}
 function bDigested(b){return!!b.digested;}
 function bScore(b){return b.score||0;}
-function dateKey(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
-function isToday(d){const n=new Date();return d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()&&d.getDate()===n.getDate();}
+/* Shanghai timezone helpers */
+function shanghaiParts(d){
+  const s=d.toLocaleString('en-CA',{timeZone:'Asia/Shanghai',hour12:false,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+  const m=s.match(/(\d{4})-(\d{2})-(\d{2}),?\s*(\d{2}):(\d{2})/);
+  if(!m)return{y:d.getFullYear(),mo:d.getMonth()+1,day:d.getDate(),h:d.getHours(),min:d.getMinutes()};
+  return{y:+m[1],mo:+m[2],day:+m[3],h:+m[4],min:+m[5]};
+}
+function dateKey(d){const p=shanghaiParts(d);return `${p.y}-${String(p.mo).padStart(2,'0')}-${String(p.day).padStart(2,'0')}`;}
+function isToday(d){const p=shanghaiParts(d),n=shanghaiParts(new Date());return p.y===n.y&&p.mo===n.mo&&p.day===n.day;}
 function isRecent7(d){return(new Date()-d)<7*864e5;}
 
 function formatDateLabel(d){
-  const now=new Date(), today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
-  const target=new Date(d.getFullYear(),d.getMonth(),d.getDate());
+  const p=shanghaiParts(d),n=shanghaiParts(new Date());
+  const target=new Date(p.y,p.mo-1,p.day),today=new Date(n.y,n.mo-1,n.day);
   const diff=Math.floor((today-target)/864e5);
   if(diff===0)return'今天';if(diff===1)return'昨天';if(diff===2)return'前天';
   if(diff<7)return diff+'天前';
-  const m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0');
-  return d.getFullYear()===now.getFullYear()?`${m}月${day}日`:`${d.getFullYear()}年${m}月${day}日`;
+  const mo=String(p.mo).padStart(2,'0'),day=String(p.day).padStart(2,'0');
+  return p.y===n.y?`${mo}月${day}日`:`${p.y}年${mo}月${day}日`;
 }
 
 function filterBuckets(bs){
@@ -942,7 +980,7 @@ function filterBuckets(bs){
   else if(currentFilter==='digested')r=r.filter(bDigested);
   if(searchQ){
     const q=searchQ.toLowerCase();
-    r=r.filter(b=>(bName(b)+' '+bPreview(b)+' '+bTags(b).join(' ')).toLowerCase().includes(q));
+    r=r.filter(b=>(bName(b)+' '+bPreview(b)+' '+bTags(b).join(' ')+' '+bDomains(b).join(' ')).toLowerCase().includes(q));
   }
   return r;
 }
@@ -975,9 +1013,8 @@ function renderFeed(bs){
       let badges='';if(pinned)badges+='<span class="mc-badge pin">钉选</span>';
       if(feel)badges+='<span class="mc-badge feel">feel</span>';
       if(resolved)badges+='<span class="mc-badge resolved">已沉底</span>';
-      let domH=domains.filter(Boolean).slice(0,2).map(d=>`<span class="mc-domain">${esc(d)}</span>`).join('');
+      let domH=domains.filter(Boolean).slice(0,2).map(d=>`<span class="mc-domain" style="cursor:pointer" onclick="event.stopPropagation();document.getElementById('search-input').value=this.textContent;searchQ=this.textContent;renderFeed(allBuckets);">${esc(d)}</span>`).join('');
       let tagH=tags.slice(0,3).map(t=>`<span class="mc-tag">#${esc(t)}</span>`).join('');
-      const dk=dateKey(bDate(b));
       h+=`<div class="${cc}" onclick="openDetail('${id}')">`;
       h+=`<div class="mc-top"><div class="mc-name">${esc(name)}</div><div class="mc-badges">${badges}</div></div>`;
       if(preview)h+=`<div class="mc-preview">${esc(preview)}</div>`;
@@ -988,37 +1025,74 @@ function renderFeed(bs){
     feed.innerHTML=h;
     return;
   }
-  keys.forEach(k=>{
-    const g=groups[k];
-    g.buckets.sort((a,b)=>bImp(b)-bImp(a));
-    const today=isToday(g.date)?'is-today':'';
-    h+=`<div class="date-group ${today}" data-date="${k}">`;
-    h+=`<div class="date-header" onclick="this.parentElement.classList.toggle('collapsed')">`;
-    h+=`<div class="date-dot"></div><div class="date-label">${formatDateLabel(g.date)}</div>`;
-    h+=`<div class="date-count">${g.buckets.length} 条</div><div class="date-chevron">▾</div></div>`;
-    h+=`<div class="mem-list">`;
-    g.buckets.forEach(b=>{
-      const id=bId(b), name=bName(b), preview=bPreview(b);
-      const domains=bDomains(b), tags=bTags(b), imp=bImp(b);
-      const pinned=bPinned(b), feel=bFeel(b), resolved=bResolved(b);
-      let cc='mem-card';
-      if(pinned)cc+=' is-pinned';else if(feel)cc+=' is-feel';else if(imp>=8)cc+=' is-high-imp';
-      let badges='';
-      if(pinned)badges+='<span class="mc-badge pin">钉选</span>';
-      if(feel)badges+='<span class="mc-badge feel">feel</span>';
-      if(resolved)badges+='<span class="mc-badge resolved">已沉底</span>';
-      if(imp>=8&&!pinned&&!feel)badges+=`<span class="mc-badge imp">imp:${imp}</span>`;
-      let domH=domains.filter(Boolean).slice(0,2).map(d=>`<span class="mc-domain">${esc(d)}</span>`).join('');
-      let tagH=tags.slice(0,3).map(t=>`<span class="mc-tag" style="cursor:pointer" onclick="event.stopPropagation();document.getElementById('search-input').value='${t}';searchQ='${t}';renderFeed(allBuckets);">#${esc(t)}</span>`).join('');
-      if(tags.length>3)tagH+=`<span class="mc-tag">+${tags.length-3}</span>`;
-      h+=`<div class="${cc}" onclick="openDetail('${id}')">`;
-      h+=`<div class="mc-top"><div class="mc-name">${esc(name)}</div><div class="mc-badges">${badges}</div></div>`;
-      if(preview)h+=`<div class="mc-preview">${esc(preview)}</div>`;
-      h+=`<div class="mc-meta">${domH}${tagH}<span class="mc-score">${bScore(b).toFixed(2)}</span></div>`;
-      h+=`</div>`;
+  /* ── List view with grouped sections ── */
+  function renderCard(b){
+    const id=bId(b), name=bName(b), preview=bPreview(b);
+    const domains=bDomains(b), tags=bTags(b), imp=bImp(b);
+    const pinned=bPinned(b), feel=bFeel(b), resolved=bResolved(b);
+    let cc='mem-card';
+    if(pinned)cc+=' is-pinned';else if(feel)cc+=' is-feel';else if(imp>=8)cc+=' is-high-imp';
+    let badges='';
+    if(pinned)badges+='<span class="mc-badge pin">钉选</span>';
+    if(feel)badges+='<span class="mc-badge feel">feel</span>';
+    if(resolved)badges+='<span class="mc-badge resolved">已沉底</span>';
+    if(imp>=8&&!pinned&&!feel)badges+=`<span class="mc-badge imp">imp:${imp}</span>`;
+    let domH=domains.filter(Boolean).slice(0,2).map(d=>`<span class="mc-domain" style="cursor:pointer" onclick="event.stopPropagation();document.getElementById('search-input').value=this.textContent;searchQ=this.textContent;renderFeed(allBuckets);">${esc(d)}</span>`).join('');
+    let tagH=tags.slice(0,3).map(t=>`<span class="mc-tag" style="cursor:pointer" onclick="event.stopPropagation();document.getElementById('search-input').value='${t}';searchQ='${t}';renderFeed(allBuckets);">#${esc(t)}</span>`).join('');
+    if(tags.length>3)tagH+=`<span class="mc-tag">+${tags.length-3}</span>`;
+    let c='';
+    c+=`<div class="${cc}" onclick="openDetail('${id}')">`;
+    c+=`<div class="mc-top"><div class="mc-name">${esc(name)}</div><div class="mc-badges">${badges}</div></div>`;
+    if(preview)c+=`<div class="mc-preview">${esc(preview)}</div>`;
+    c+=`<div class="mc-meta">${domH}${tagH}<span class="mc-score">${bScore(b).toFixed(2)}</span></div>`;
+    c+=`</div>`;
+    return c;
+  }
+  if(currentFilter==='all'&&!searchQ){
+    const pinnedItems=filtered.filter(bPinned);
+    const importantItems=filtered.filter(b=>bImp(b)>=8&&!bPinned(b));
+    const rest=filtered.filter(b=>!bPinned(b)&&bImp(b)<8);
+    if(pinnedItems.length){
+      h+=`<div class="section-group"><div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')"><span class="sh-icon">📌</span> 钉选<span class="sh-count">${pinnedItems.length} 条</span><span class="sh-chevron">▾</span></div>`;
+      h+=`<div class="section-body" style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px;">`;
+      pinnedItems.forEach(b=>{h+=renderCard(b);});
+      h+=`</div></div>`;
+    }
+    if(importantItems.length){
+      h+=`<div class="section-group"><div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')"><span class="sh-icon">⭐</span> 重要 (≥8)<span class="sh-count">${importantItems.length} 条</span><span class="sh-chevron">▾</span></div>`;
+      h+=`<div class="section-body" style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px;">`;
+      importantItems.sort((a,b)=>bImp(b)-bImp(a)).forEach(b=>{h+=renderCard(b);});
+      h+=`</div></div>`;
+    }
+    if(rest.length){
+      const rGroups={};
+      rest.forEach(b=>{const d=bDate(b),k=dateKey(d);if(!rGroups[k])rGroups[k]={date:d,buckets:[]};rGroups[k].buckets.push(b);});
+      const rKeys=Object.keys(rGroups).sort((a,b)=>b.localeCompare(a));
+      rKeys.forEach(k=>{
+        const g=rGroups[k];g.buckets.sort((a,b)=>bImp(b)-bImp(a));
+        const today=isToday(g.date)?'is-today':'';
+        h+=`<div class="date-group ${today}" data-date="${k}">`;
+        h+=`<div class="date-header" onclick="this.parentElement.classList.toggle('collapsed')">`;
+        h+=`<div class="date-dot"></div><div class="date-label">${formatDateLabel(g.date)}</div>`;
+        h+=`<div class="date-count">${g.buckets.length} 条</div><div class="date-chevron">▾</div></div>`;
+        h+=`<div class="mem-list">`;
+        g.buckets.forEach(b=>{h+=renderCard(b);});
+        h+=`</div></div>`;
+      });
+    }
+  } else {
+    keys.forEach(k=>{
+      const g=groups[k];g.buckets.sort((a,b)=>bImp(b)-bImp(a));
+      const today=isToday(g.date)?'is-today':'';
+      h+=`<div class="date-group ${today}" data-date="${k}">`;
+      h+=`<div class="date-header" onclick="this.parentElement.classList.toggle('collapsed')">`;
+      h+=`<div class="date-dot"></div><div class="date-label">${formatDateLabel(g.date)}</div>`;
+      h+=`<div class="date-count">${g.buckets.length} 条</div><div class="date-chevron">▾</div></div>`;
+      h+=`<div class="mem-list">`;
+      g.buckets.forEach(b=>{h+=renderCard(b);});
+      h+=`</div></div>`;
     });
-    h+=`</div></div>`;
-  });
+  }
   feed.innerHTML=h;
 }
 
@@ -1111,13 +1185,13 @@ async function openDetail(id){
   document.getElementById('m-imp-bar').style.width=`${imp*10}%`;
   document.getElementById('m-imp-num').textContent=imp;
   document.getElementById('m-meta').innerHTML=`
-    <div class="mm-item"><div class="mm-label">创建时间</div><div class="mm-val">${d.toLocaleString('zh-CN')}</div></div>
+    <div class="mm-item"><div class="mm-label">创建时间</div><div class="mm-val">${d.toLocaleString('zh-CN',{timeZone:'Asia/Shanghai'})}</div></div>
     <div class="mm-item"><div class="mm-label">领域</div><div class="mm-val">${domains.filter(Boolean).join(', ')||'—'}</div></div>
     <div class="mm-item"><div class="mm-label">效价</div><div class="mm-val">${meta.valence!=null?meta.valence:b.valence!=null?b.valence:'—'}</div></div>
     <div class="mm-item"><div class="mm-label">唤醒度</div><div class="mm-val">${meta.arousal!=null?meta.arousal:b.arousal!=null?b.arousal:'—'}</div></div>
     <div class="mm-item"><div class="mm-label">状态</div><div class="mm-val">${bPinned(b)?'📌 钉选':bResolved(b)?'💤 已沉底':'🟢 活跃'}</div></div>
     <div class="mm-item"><div class="mm-label">权重</div><div class="mm-val">${bScore(b).toFixed(4)}</div></div>`;
-  document.getElementById('m-tags').innerHTML=tags.map(t=>`<span class="modal-tag" style="cursor:pointer" onclick="closeModal();document.getElementById('search-input').value='${t}';searchQ='${t}';renderFeed(allBuckets);">#${esc(t)}</span>`).join('');
+  document.getElementById('m-tags').innerHTML=domains.filter(Boolean).map(d=>`<span class="modal-tag" style="background:rgba(155,142,196,0.15);cursor:pointer" onclick="closeModal();document.getElementById('search-input').value=this.textContent;searchQ=this.textContent;renderFeed(allBuckets);">${esc(d)}</span>`).concat(tags.map(t=>`<span class="modal-tag" style="cursor:pointer" onclick="closeModal();document.getElementById('search-input').value=this.textContent.slice(1);searchQ=this.textContent.slice(1);renderFeed(allBuckets);">#${esc(t)}</span>`)).join('');
   // Same-day memories
   const sameDayKey=dateKey(d);
   const sameDay=allBuckets.filter(sb=>dateKey(bDate(sb))===sameDayKey&&bId(sb)!==bId(b));
@@ -1192,6 +1266,17 @@ document.getElementById('breath-query').onkeydown=e=>{if(e.key==='Enter')runBrea
 
 /* ── Timeline ── */
 let tlMode='day';
+function tlMakeItem(b){
+  let badge='';if(bPinned(b))badge='📌';else if(bFeel(b))badge='💜';else if(bResolved(b))badge='💤';
+  let h=`<div class="tl-item" onclick="openDetail('${bId(b)}')"><span class="tl-item-title">${esc(bName(b))}</span>`;
+  if(badge)h+=`<span class="tl-item-badges">${badge}</span>`;
+  const p=bPreview(b);if(p)h+=`<div class="tl-item-preview">${esc(p)}</div>`;
+  h+=`</div>`;
+  return h;
+}
+function tlMakePeek(items,max){
+  return items.slice(0,max||2).map(b=>`<span class="tl-day-peek-item">${esc(bName(b))}</span>`).join('');
+}
 function renderTimeline(){
   const feed=document.getElementById('timeline-feed');
   if(!allBuckets.length){feed.innerHTML='<div class="loading-wrap" style="padding:40px;">还没有记忆</div>';return;}
@@ -1199,24 +1284,26 @@ function renderTimeline(){
   if(tlMode==='month'){
     const months={};
     sorted.forEach(b=>{const d=bDate(b);const k=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
-      if(!months[k])months[k]={label:`${d.getFullYear()}年${d.getMonth()+1}月`,days:{}};
+      if(!months[k])months[k]={label:`${d.getFullYear()}年${d.getMonth()+1}月`,days:{},allItems:[]};
       const dk=dateKey(d);
       if(!months[k].days[dk])months[k].days[dk]={date:d,items:[]};
-      months[k].days[dk].items.push(b);});
+      months[k].days[dk].items.push(b);months[k].allItems.push(b);});
     let h='';
     Object.keys(months).sort((a,b)=>b.localeCompare(a)).forEach(mk=>{
-      const m=months[mk];h+=`<div class="tl-month-header">${m.label}</div>`;
+      const m=months[mk];const totalCount=m.allItems.length;
+      h+=`<div class="tl-month-group">`;
+      h+=`<div class="tl-month-header" onclick="this.parentElement.classList.toggle('collapsed')"><span>${m.label}<span style="font-size:13px;font-weight:400;color:var(--text-muted);margin-left:8px;">${totalCount} 条</span></span><span class="tl-chevron">▾</span></div>`;
+      h+=`<div class="tl-month-peek">${tlMakePeek(m.allItems,3)}</div>`;
+      h+=`<div class="tl-month-body">`;
       Object.keys(m.days).sort((a,b)=>b.localeCompare(a)).forEach(dk=>{
         const dg=m.days[dk];const today=isToday(dg.date)?'is-today':'';
         h+=`<div class="tl-day-group ${today}"><div class="tl-day-dot"></div>`;
-        h+=`<div class="tl-day-label">${formatDateLabel(dg.date)}<span>${dg.items.length} 条</span></div><div class="tl-items">`;
-        dg.items.forEach(b=>{
-          let badge='';if(bPinned(b))badge='📌';else if(bFeel(b))badge='💜';else if(bResolved(b))badge='💤';
-          h+=`<div class="tl-item" onclick="openDetail('${bId(b)}')"><span class="tl-item-title">${esc(bName(b))}</span>`;
-          if(badge)h+=`<span class="tl-item-badges">${badge}</span>`;
-          const p=bPreview(b);if(p)h+=`<div class="tl-item-preview">${esc(p)}</div>`;
-          h+=`</div>`;});
-        h+=`</div></div>`;});});
+        h+=`<div class="tl-day-label" onclick="this.parentElement.classList.toggle('tl-collapsed')">${formatDateLabel(dg.date)}<span>${dg.items.length} 条</span><span class="tl-chevron">▾</span></div>`;
+        h+=`<div class="tl-day-peek">${tlMakePeek(dg.items)}</div>`;
+        h+=`<div class="tl-items">`;
+        dg.items.forEach(b=>{h+=tlMakeItem(b);});
+        h+=`</div></div>`;});
+      h+=`</div></div>`;});
     feed.innerHTML=h;
   } else {
     const days={};
@@ -1226,13 +1313,10 @@ function renderTimeline(){
     Object.keys(days).sort((a,b)=>b.localeCompare(a)).forEach(dk=>{
       const dg=days[dk];const today=isToday(dg.date)?'is-today':'';
       h+=`<div class="tl-day-group ${today}"><div class="tl-day-dot"></div>`;
-      h+=`<div class="tl-day-label">${formatDateLabel(dg.date)}<span>${dg.items.length} 条</span></div><div class="tl-items">`;
-      dg.items.forEach(b=>{
-        let badge='';if(bPinned(b))badge='📌';else if(bFeel(b))badge='💜';else if(bResolved(b))badge='💤';
-        h+=`<div class="tl-item" onclick="openDetail('${bId(b)}')"><span class="tl-item-title">${esc(bName(b))}</span>`;
-        if(badge)h+=`<span class="tl-item-badges">${badge}</span>`;
-        const p=bPreview(b);if(p)h+=`<div class="tl-item-preview">${esc(p)}</div>`;
-        h+=`</div>`;});
+      h+=`<div class="tl-day-label" onclick="this.parentElement.classList.toggle('tl-collapsed')">${formatDateLabel(dg.date)}<span>${dg.items.length} 条</span><span class="tl-chevron">▾</span></div>`;
+      h+=`<div class="tl-day-peek">${tlMakePeek(dg.items)}</div>`;
+      h+=`<div class="tl-items">`;
+      dg.items.forEach(b=>{h+=tlMakeItem(b);});
       h+=`</div></div>`;});
     feed.innerHTML=h;
   }
@@ -1299,8 +1383,8 @@ function drawNetwork(ctx,W,H,data){
 async function loadConfig(){
   try{
     const r=await authFetch('/api/config');if(!r)return;const c=await r.json();
-    document.getElementById('cfg-dehy-model').value=c.dehydration.model||'';
-    document.getElementById('cfg-dehy-url').value=c.dehydration.base_url||'';
+    document.getElementById('cfg-dehy-model').value=c.dehydration.model||'gemini-2.5-flash';
+    document.getElementById('cfg-dehy-url').value=c.dehydration.base_url||'https://generativelanguage.googleapis.com/v1beta/openai';
     document.getElementById('cfg-dehy-key').placeholder='当前: '+(c.dehydration.api_key_masked||'未设置');
     document.getElementById('cfg-dehy-key').value='';
     document.getElementById('cfg-dehy-maxtokens').value=c.dehydration.max_tokens||1024;
