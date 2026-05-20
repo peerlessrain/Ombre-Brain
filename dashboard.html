@@ -1220,6 +1220,7 @@ async function openDetail(id){
     <div class="mm-item"><div class="mm-label">领域</div><div class="mm-val">${domains.filter(Boolean).join(', ')||'—'}</div></div>
     <div class="mm-item"><div class="mm-label">效价</div><div class="mm-val">${meta.valence!=null?meta.valence:b.valence!=null?b.valence:'—'}</div></div>
     <div class="mm-item"><div class="mm-label">唤醒度</div><div class="mm-val">${meta.arousal!=null?meta.arousal:b.arousal!=null?b.arousal:'—'}</div></div>
+    <div class="mm-item"><div class="mm-label">Bucket ID</div><div class="mm-val" style="font-size:11px;word-break:break-all;font-family:monospace;cursor:pointer;user-select:all;" title="点击可选中复制">${bId(b)}</div></div>
     <div class="mm-item"><div class="mm-label">状态</div><div class="mm-val">${bPinned(b)?'📌 钉选':bResolved(b)?'💤 已沉底':'🟢 活跃'}</div></div>
     <div class="mm-item"><div class="mm-label">权重</div><div class="mm-val">${bScore(b).toFixed(4)}</div></div>`;
   document.getElementById('m-tags').innerHTML=domains.filter(Boolean).map(d=>`<span class="modal-tag" style="background:rgba(155,142,196,0.15);cursor:pointer" onclick="closeModal();document.getElementById('search-input').value=this.textContent;searchQ=this.textContent;renderFeed(allBuckets);">${esc(d)}</span>`).concat(tags.map(t=>`<span class="modal-tag" style="cursor:pointer" onclick="closeModal();document.getElementById('search-input').value=this.textContent.slice(1);searchQ=this.textContent.slice(1);renderFeed(allBuckets);">#${esc(t)}</span>`)).join('');
