@@ -966,7 +966,7 @@ async function fetchBuckets(){
   }catch(e){return[];}
 }
 
-function bDate(b){const r=b.last_active||b.created;if(!r)return new Date();if(typeof r==='string'&&!/[Z+]/.test(r.slice(-6)))return new Date(r+'Z');return new Date(r);}
+function bDate(b){const r=b.created||b.last_active;if(!r)return new Date();if(typeof r==='string'&&!/[Z+]/.test(r.slice(-6)))return new Date(r+'Z');return new Date(r);}
 function bId(b){return b.id||b.bucket_id||b.name;}
 function bName(b){return b.name||'未命名';}
 function bPreview(b){return b.content_preview||b.content||'';}
@@ -1216,6 +1216,7 @@ async function openDetail(id){
   document.getElementById('m-imp-num').textContent=imp;
   document.getElementById('m-meta').innerHTML=`
     <div class="mm-item"><div class="mm-label">创建时间</div><div class="mm-val">${d.toLocaleString('zh-CN',{timeZone:'Asia/Shanghai'})}</div></div>
+    <div class="mm-item"><div class="mm-label">最后唤醒</div><div class="mm-val">${(()=>{const la=b.last_active||(b.metadata||{}).last_active;if(!la)return'—';const s=typeof la==='string'&&!/[Z+]/.test(la.slice(-6))?la+'Z':la;return new Date(s).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai'});})()}</div></div>
     <div class="mm-item"><div class="mm-label">领域</div><div class="mm-val">${domains.filter(Boolean).join(', ')||'—'}</div></div>
     <div class="mm-item"><div class="mm-label">效价</div><div class="mm-val">${meta.valence!=null?meta.valence:b.valence!=null?b.valence:'—'}</div></div>
     <div class="mm-item"><div class="mm-label">唤醒度</div><div class="mm-val">${meta.arousal!=null?meta.arousal:b.arousal!=null?b.arousal:'—'}</div></div>
