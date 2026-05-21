@@ -810,8 +810,14 @@ body {
       <button class="filter-pill" data-tl="month" onclick="tlMode='month';renderTimeline();document.querySelectorAll('[data-tl]').forEach(b=>b.classList.toggle('active',b.dataset.tl==='month'))">按月</button>
     </div>
     <div style="display:flex;gap:10px;margin-bottom:16px;align-items:center;flex-wrap:wrap;">
-      <div id="tl-month-nav" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
-      <input type="date" id="tl-date-jump" style="padding:6px 12px;border:1px solid var(--border);border-radius:18px;font-size:12px;font-family:var(--font-body);color:var(--text);background:var(--card);outline:none;" onchange="tlJumpToDate(this.value)">
+      <select id="tl-month-nav" style="padding:7px 14px;border:1px solid var(--border);border-radius:18px;font-size:12px;font-family:var(--font-body);color:var(--text);background:var(--card);outline:none;cursor:pointer;appearance:none;-webkit-appearance:none;background-image:url('data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2210%22 height=%226%22><path d=%22M0 0l5 6 5-6z%22 fill=%22%237E7694%22/></svg>');background-repeat:no-repeat;background-position:right 12px center;padding-right:30px;" onchange="tlJumpMonth(this.value)">
+      </select>
+      <div id="tl-date-jump" style="display:flex;gap:6px;align-items:center;">
+        <select id="tl-jump-y" style="padding:6px 10px;border:1px solid var(--border);border-radius:14px;font-size:12px;font-family:var(--font-body);color:var(--text);background:var(--card);outline:none;cursor:pointer;"></select>
+        <select id="tl-jump-m" style="padding:6px 10px;border:1px solid var(--border);border-radius:14px;font-size:12px;font-family:var(--font-body);color:var(--text);background:var(--card);outline:none;cursor:pointer;"></select>
+        <select id="tl-jump-d" style="padding:6px 10px;border:1px solid var(--border);border-radius:14px;font-size:12px;font-family:var(--font-body);color:var(--text);background:var(--card);outline:none;cursor:pointer;"></select>
+        <button onclick="tlDoJump()" style="padding:6px 14px;border:none;border-radius:14px;font-size:12px;font-family:var(--font-body);background:var(--primary);color:white;cursor:pointer;">跳转</button>
+      </div>
     </div>
     <div id="timeline-feed"></div>
   </div>
@@ -1408,56 +1414,63 @@ function renderTimeline(){
       h+=`</div></div>`;});
     feed.innerHTML=h;
   }
-  /* 日期跳转 */
-  window.tlJumpToDate=function(val){
-    if(!val)return;
-    const[y,m]=val.split('-');
-    const mk=y+'-'+m;
-    /* 按月模式先展开对应月 */
-    const mg=document.getElementById('tl-m-'+mk);
-    if(mg){mg.classList.remove('collapsed');mg.scrollIntoView({behavior:'smooth',block:'start'});}
-    /* 找到对应日期组 */
+  /* 月份与日期导航 */
+  const monthKeys=new Set(), dayKeys=new Set(), yearKeys=new Set();
+  allBuckets.forEach(b=>{const p=shanghaiParts(bDate(b));
+    monthKeys.add(p.y+'-'+String(p.mo).padStart(2,'0'));
+    dayKeys.add(p.y+'-'+String(p.mo).padStart(2,'0')+'-'+String(p.day).padStart(2,'0'));
+    yearKeys.add(p.y);});
+  const sortedMonths=[...monthKeys].sort((a,b)=>b.localeCompare(a));
+  /* 月份下拉（按月模式显示） */
+  nav.style.display=tlMode==='month'?'':'none';
+  nav.innerHTML=sortedMonths.map(mk=>{const[y,m]=mk.split('-');
+    return`<option value="${mk}">${y}年${+m}月</option>`;}).join('');
+  window.tlJumpMonth=function(mk){
+    const el=document.getElementById('tl-m-'+mk);
+    if(el){el.classList.remove('collapsed');el.scrollIntoView({behavior:'smooth',block:'start'});}
+  };
+  /* 日期跳转下拉 */
+  const sortedYears=[...yearKeys].sort((a,b)=>b-a);
+  const jy=document.getElementById('tl-jump-y'),jm=document.getElementById('tl-jump-m'),jd=document.getElementById('tl-jump-d');
+  jy.innerHTML=sortedYears.map(y=>`<option value="${y}">${y}年</option>`).join('');
+  function fillMonths(){
+    const y=jy.value;
+    const ms=[...monthKeys].filter(k=>k.startsWith(y)).sort((a,b)=>b.localeCompare(a));
+    jm.innerHTML=ms.map(mk=>{const m=+mk.split('-')[1];return`<option value="${mk}">${m}月</option>`;}).join('');
+    fillDays();
+  }
+  function fillDays(){
+    const mk=jm.value;if(!mk)return;
+    const ds=[...dayKeys].filter(k=>k.startsWith(mk)).sort((a,b)=>b.localeCompare(a));
+    jd.innerHTML=ds.map(dk=>{const d=+dk.split('-')[2];return`<option value="${dk}">${d}日</option>`;}).join('');
+  }
+  jy.onchange=fillMonths;jm.onchange=fillDays;
+  fillMonths();
+  window.tlDoJump=function(){
+    const val=jd.value;if(!val)return;
+    const[y,m]=val.split('-');const mk=y+'-'+m;
+    /* 按月模式先展开月 */
+    if(tlMode==='month'){
+      const mg=document.getElementById('tl-m-'+mk);
+      if(mg){mg.classList.remove('collapsed');mg.scrollIntoView({behavior:'smooth',block:'start'});}
+    }
     setTimeout(()=>{
       const groups=document.querySelectorAll('.tl-day-group');
       for(const g of groups){
-        const lbl=g.querySelector('.tl-day-label');
-        if(!lbl)continue;
-        const dk=dateKey(bDate(allBuckets.find(b=>dateKey(bDate(b))===val)||new Date()));
-        if(val===dk||g.querySelector(`[data-date="${val}"]`)){
-          g.classList.remove('tl-collapsed');
-          g.scrollIntoView({behavior:'smooth',block:'start'});
-          return;
+        const lbl=g.querySelector('.tl-day-label');if(!lbl)continue;
+        const items=g.querySelectorAll('.tl-item');
+        for(const it of items){
+          if(it.onclick){g.classList.remove('tl-collapsed');g.scrollIntoView({behavior:'smooth',block:'start'});return;}
         }
       }
     },300);
   };
-  /* 月份快速导航 */
-  const monthKeys=new Set();
-  allBuckets.forEach(b=>{const p=shanghaiParts(bDate(b));monthKeys.add(p.y+'-'+String(p.mo).padStart(2,'0'));});
-  const sortedMonths=[...monthKeys].sort((a,b)=>b.localeCompare(a));
-  nav.innerHTML=sortedMonths.map(mk=>{
-    const[y,m]=mk.split('-');
-    return`<button class="filter-pill" onclick="var el=document.getElementById('tl-m-${mk}');if(el)el.scrollIntoView({behavior:'smooth',block:'start'});" style="font-size:12px;">${y}年${+m}月</button>`;
-  }).join('');
   /* 给月份组加锚点id */
   document.querySelectorAll('.tl-month-group').forEach(g=>{
     const h=g.querySelector('.tl-month-header');
     if(h){const txt=h.textContent;const match=txt.match(/(\d{4})年(\d+)月/);
       if(match)g.id='tl-m-'+match[1]+'-'+String(match[2]).padStart(2,'0');}
   });
-  /* 按日模式给最早出现的日期组加月份锚点 */
-  if(tlMode==='day'){
-    const seen=new Set();
-    document.querySelectorAll('.tl-day-group').forEach(g=>{
-      const lbl=g.querySelector('.tl-day-label');if(!lbl)return;
-      const txt=lbl.textContent;
-      sortedMonths.forEach(mk=>{
-        if(!seen.has(mk)){const[y,m]=mk.split('-');
-          if(txt.includes(m+'月')||txt.includes('今天')||txt.includes('昨天')){
-            g.id='tl-m-'+mk;seen.add(mk);}}
-      });
-    });
-  }
 }
 
 /* ── View Mode ── */
