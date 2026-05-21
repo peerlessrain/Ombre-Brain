@@ -809,7 +809,10 @@ body {
       <button class="filter-pill active" data-tl="day" onclick="tlMode='day';renderTimeline();document.querySelectorAll('[data-tl]').forEach(b=>b.classList.toggle('active',b.dataset.tl==='day'))">按日</button>
       <button class="filter-pill" data-tl="month" onclick="tlMode='month';renderTimeline();document.querySelectorAll('[data-tl]').forEach(b=>b.classList.toggle('active',b.dataset.tl==='month'))">按月</button>
     </div>
-    <div id="tl-month-nav" style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap;"></div>
+    <div style="display:flex;gap:10px;margin-bottom:16px;align-items:center;flex-wrap:wrap;">
+      <div id="tl-month-nav" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+      <input type="date" id="tl-date-jump" style="padding:6px 12px;border:1px solid var(--border);border-radius:18px;font-size:12px;font-family:var(--font-body);color:var(--text);background:var(--card);outline:none;" onchange="tlJumpToDate(this.value)">
+    </div>
     <div id="timeline-feed"></div>
   </div>
 </div>
@@ -956,7 +959,7 @@ document.querySelectorAll('.nav-tab').forEach(tab=>{
 /* ═══════════════════════════════════════
    Memory List
    ═══════════════════════════════════════ */
-let allBuckets=[], currentFilter='all', searchQ='', calYear, calMonth, currentBucket=null, viewMode='list';
+let allBuckets=[], currentFilter='all', searchQ='', calYear, calMonth, currentBucket=null, viewMode='list', calDateFilter='';
 
 async function fetchBuckets(){
   try{
@@ -1078,6 +1081,16 @@ function renderFeed(bs){
     c+=`</div>`;
     return c;
   }
+  if(calDateFilter){
+    const dayItems=filtered.filter(b=>dateKey(bDate(b))===calDateFilter);
+    const[fy,fm,fd]=calDateFilter.split('-');
+    h+=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;"><button class="filter-pill" onclick="calDateFilter='';renderFeed(allBuckets);" style="font-size:12px;">← 返回全部</button><span style="font-family:var(--font-display);font-size:18px;font-weight:600;color:var(--primary-deep);">${+fm}月${+fd}日</span><span style="font-size:12px;color:var(--text-muted);">${dayItems.length} 条</span></div>`;
+    h+=`<div style="display:flex;flex-direction:column;gap:8px;">`;
+    dayItems.sort((a,b)=>bDate(b)-bDate(a)).forEach(b=>{h+=renderCard(b);});
+    h+=`</div>`;
+    feed.innerHTML=h;
+    return;
+  }
   if(currentFilter==='all'&&!searchQ){
     const pinnedItems=filtered.filter(bPinned);
     const importantItems=filtered.filter(b=>bImp(b)>=8&&!bPinned(b));
@@ -1179,12 +1192,8 @@ document.getElementById('cal-prev').onclick=()=>{calMonth--;if(calMonth<0){calMo
 document.getElementById('cal-next').onclick=()=>{calMonth++;if(calMonth>11){calMonth=0;calYear++;}renderCal(calYear,calMonth);};
 function scrollToDate(y,m,d){
   const k=`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-  /* 先尝试跳转到日期组 */
-  const g=document.querySelector(`.date-group[data-date="${k}"]`);
-  if(g){g.classList.remove('collapsed');g.scrollIntoView({behavior:'smooth',block:'start'});return;}
-  /* 如果条目在钉选/重要分组里，按日期筛选 */
-  document.getElementById('search-input').value=k;
-  searchQ=k;
+  calDateFilter=k;
+  searchQ='';document.getElementById('search-input').value='';
   renderFeed(allBuckets);
   window.scrollTo({top:0,behavior:'smooth'});
 }
@@ -1399,6 +1408,29 @@ function renderTimeline(){
       h+=`</div></div>`;});
     feed.innerHTML=h;
   }
+  /* 日期跳转 */
+  window.tlJumpToDate=function(val){
+    if(!val)return;
+    const[y,m]=val.split('-');
+    const mk=y+'-'+m;
+    /* 按月模式先展开对应月 */
+    const mg=document.getElementById('tl-m-'+mk);
+    if(mg){mg.classList.remove('collapsed');mg.scrollIntoView({behavior:'smooth',block:'start'});}
+    /* 找到对应日期组 */
+    setTimeout(()=>{
+      const groups=document.querySelectorAll('.tl-day-group');
+      for(const g of groups){
+        const lbl=g.querySelector('.tl-day-label');
+        if(!lbl)continue;
+        const dk=dateKey(bDate(allBuckets.find(b=>dateKey(bDate(b))===val)||new Date()));
+        if(val===dk||g.querySelector(`[data-date="${val}"]`)){
+          g.classList.remove('tl-collapsed');
+          g.scrollIntoView({behavior:'smooth',block:'start'});
+          return;
+        }
+      }
+    },300);
+  };
   /* 月份快速导航 */
   const monthKeys=new Set();
   allBuckets.forEach(b=>{const p=shanghaiParts(bDate(b));monthKeys.add(p.y+'-'+String(p.mo).padStart(2,'0'));});
