@@ -809,6 +809,7 @@ body {
       <button class="filter-pill active" data-tl="day" onclick="tlMode='day';renderTimeline();document.querySelectorAll('[data-tl]').forEach(b=>b.classList.toggle('active',b.dataset.tl==='day'))">按日</button>
       <button class="filter-pill" data-tl="month" onclick="tlMode='month';renderTimeline();document.querySelectorAll('[data-tl]').forEach(b=>b.classList.toggle('active',b.dataset.tl==='month'))">按月</button>
     </div>
+    <div id="tl-month-nav" style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap;"></div>
     <div id="timeline-feed"></div>
   </div>
 </div>
@@ -1178,8 +1179,14 @@ document.getElementById('cal-prev').onclick=()=>{calMonth--;if(calMonth<0){calMo
 document.getElementById('cal-next').onclick=()=>{calMonth++;if(calMonth>11){calMonth=0;calYear++;}renderCal(calYear,calMonth);};
 function scrollToDate(y,m,d){
   const k=`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  /* 先尝试跳转到日期组 */
   const g=document.querySelector(`.date-group[data-date="${k}"]`);
-  if(g){g.classList.remove('collapsed');g.scrollIntoView({behavior:'smooth',block:'start'});}
+  if(g){g.classList.remove('collapsed');g.scrollIntoView({behavior:'smooth',block:'start'});return;}
+  /* 如果条目在钉选/重要分组里，按日期筛选 */
+  document.getElementById('search-input').value=k;
+  searchQ=k;
+  renderFeed(allBuckets);
+  window.scrollTo({top:0,behavior:'smooth'});
 }
 
 /* ── Stats ── */
@@ -1299,11 +1306,22 @@ document.getElementById('breath-query').onkeydown=e=>{if(e.key==='Enter')runBrea
 /* ── Timeline ── */
 let tlMode='day';
 function tlMakeItem(b){
-  let badge='';if(bPinned(b))badge='📌';else if(bFeel(b))badge='💜';else if(bResolved(b))badge='💤';
-  let h=`<div class="tl-item" onclick="openDetail('${bId(b)}')"><span class="tl-item-title">${esc(bName(b))}</span>`;
-  if(badge)h+=`<span class="tl-item-badges">${badge}</span>`;
+  const badge=bPinned(b)?'📌':bFeel(b)?'💜':bResolved(b)?'💤':'';
+  const d=bDate(b),sp=shanghaiParts(d);
+  const time=`${String(sp.h).padStart(2,'0')}:${String(sp.min).padStart(2,'0')}`;
+  const imp=bImp(b);
+  let bars='';for(let i=1;i<=10;i++){const ht=3+i;bars+=`<div style="width:2.5px;height:${ht}px;border-radius:1px;background:${i<=imp?'var(--primary)':'var(--border)'};"></div>`;}
+  const domains=bDomains(b);
+  let domH=domains.filter(Boolean).slice(0,2).map(d=>`<span style="font-size:10px;padding:1px 6px;border-radius:5px;background:var(--primary-glass);color:var(--primary-deep);">${esc(d)}</span>`).join('');
+  let h=`<div class="tl-item" onclick="openDetail('${bId(b)}')" style="display:flex;align-items:flex-start;gap:10px;">`;
+  h+=`<span style="font-size:11px;color:var(--text-muted);font-variant-numeric:tabular-nums;min-width:38px;padding-top:2px;">${time}</span>`;
+  h+=`<div style="flex:1;min-width:0;">`;
+  h+=`<div style="display:flex;align-items:center;gap:6px;"><span class="tl-item-title">${esc(bName(b))}</span>`;
+  if(badge)h+=`<span>${badge}</span>`;
+  h+=`<div style="display:flex;gap:1.5px;align-items:flex-end;height:14px;margin-left:auto;flex-shrink:0;">${bars}</div></div>`;
   const p=bPreview(b);if(p)h+=`<div class="tl-item-preview">${esc(p)}</div>`;
-  h+=`</div>`;
+  if(domH)h+=`<div style="display:flex;gap:4px;margin-top:4px;">${domH}</div>`;
+  h+=`</div></div>`;
   return h;
 }
 function tlMakePeek(items,max){
@@ -1339,6 +1357,7 @@ function tlMakePeek(items,max){
 }
 function renderTimeline(){
   const feed=document.getElementById('timeline-feed');
+  const nav=document.getElementById('tl-month-nav');
   if(!allBuckets.length){feed.innerHTML='<div class="loading-wrap" style="padding:40px;">还没有记忆</div>';return;}
   const sorted=[...allBuckets].sort((a,b)=>bDate(b)-bDate(a));
   if(tlMode==='month'){
@@ -1379,6 +1398,33 @@ function renderTimeline(){
       dg.items.forEach(b=>{h+=tlMakeItem(b);});
       h+=`</div></div>`;});
     feed.innerHTML=h;
+  }
+  /* 月份快速导航 */
+  const monthKeys=new Set();
+  allBuckets.forEach(b=>{const p=shanghaiParts(bDate(b));monthKeys.add(p.y+'-'+String(p.mo).padStart(2,'0'));});
+  const sortedMonths=[...monthKeys].sort((a,b)=>b.localeCompare(a));
+  nav.innerHTML=sortedMonths.map(mk=>{
+    const[y,m]=mk.split('-');
+    return`<button class="filter-pill" onclick="var el=document.getElementById('tl-m-${mk}');if(el)el.scrollIntoView({behavior:'smooth',block:'start'});" style="font-size:12px;">${y}年${+m}月</button>`;
+  }).join('');
+  /* 给月份组加锚点id */
+  document.querySelectorAll('.tl-month-group').forEach(g=>{
+    const h=g.querySelector('.tl-month-header');
+    if(h){const txt=h.textContent;const match=txt.match(/(\d{4})年(\d+)月/);
+      if(match)g.id='tl-m-'+match[1]+'-'+String(match[2]).padStart(2,'0');}
+  });
+  /* 按日模式给最早出现的日期组加月份锚点 */
+  if(tlMode==='day'){
+    const seen=new Set();
+    document.querySelectorAll('.tl-day-group').forEach(g=>{
+      const lbl=g.querySelector('.tl-day-label');if(!lbl)return;
+      const txt=lbl.textContent;
+      sortedMonths.forEach(mk=>{
+        if(!seen.has(mk)){const[y,m]=mk.split('-');
+          if(txt.includes(m+'月')||txt.includes('今天')||txt.includes('昨天')){
+            g.id='tl-m-'+mk;seen.add(mk);}}
+      });
+    });
   }
 }
 
