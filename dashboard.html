@@ -1432,7 +1432,7 @@ function renderTimeline(){
           if(c>0){if(r<=0.2)bg='#E8E0F4';else if(r<=0.4)bg='#D4C8E8';else if(r<=0.6)bg='#BFA8DC';else if(r<=0.8)bg='#9B8EC4';else bg='#7B68AE';}
           const np=shanghaiParts(new Date());
           const isT=(+y===np.y&&+m===np.mo&&d===np.day);
-          sh+=`<div onclick="tlStripJump('${dk}');${c?'tlPlayNote('+c+')':''}" title="${+m}月${d}日 · ${c}条" style="flex:1;height:14px;border-radius:2px;background:${bg};cursor:${c?'pointer':'default'};min-width:0;${isT?'outline:1.5px solid var(--primary);outline-offset:1px;':''}transition:transform 0.15s;" ${c?'onmouseover="this.style.transform=\'scaleY(1.6)\'" onmouseout="this.style.transform=\'\'"':''}></div>`;
+          sh+=`<div onclick="tlStripJump('${dk}');${c?'tlPlayNote('+c+')':''}" title="${+m}月${d}日 · ${c}条" style="flex:1;height:14px;border-radius:2px;background:${bg};cursor:${c?'pointer':'default'};min-width:0;${isT?'outline:1.5px solid var(--primary);outline-offset:1px;':''}transition:transform 0.15s;" ${c?'onmouseover="this.style.transform=\'scaleY(1.6)\';tlPlayNote('+c+')" onmouseout="this.style.transform=\'\'"':''}></div>`;
         }
         sh+=`</div></div>`;
       });
@@ -1456,7 +1456,7 @@ function renderTimeline(){
         }
         const np=shanghaiParts(new Date());
         const isT=(+y===np.y&&+m===np.mo&&d===np.day);
-        sh+=`<div onclick="tlStripJump('${dk}');${c?'tlPlayNote('+c+')':''}" title="${+m}月${d}日 · ${c}条" style="flex:1;height:14px;border-radius:2px;background:${bg};cursor:${c?'pointer':'default'};min-width:0;${isT?'outline:1.5px solid var(--primary);outline-offset:1px;':''}transition:transform 0.15s;" ${c?'onmouseover="this.style.transform=\'scaleY(1.6)\'" onmouseout="this.style.transform=\'\'"':''}></div>`;
+        sh+=`<div onclick="tlStripJump('${dk}');${c?'tlPlayNote('+c+')':''}" title="${+m}月${d}日 · ${c}条" style="flex:1;height:14px;border-radius:2px;background:${bg};cursor:${c?'pointer':'default'};min-width:0;${isT?'outline:1.5px solid var(--primary);outline-offset:1px;':''}transition:transform 0.15s;" ${c?'onmouseover="this.style.transform=\'scaleY(1.6)\';tlPlayNote('+c+')" onmouseout="this.style.transform=\'\'"':''}></div>`;
       }
       sh+=`</div></div>`;
     });
