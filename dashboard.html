@@ -1421,8 +1421,8 @@ function renderTimeline(){
       const[y,m]=mk.split('-');
       const dim=new Date(+y,+m,0).getDate();
       sh+=`<div style="margin-bottom:10px;">`;
-      sh+=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;"><span style="font-size:12px;font-weight:600;color:var(--text-secondary);min-width:62px;">${+m}月 ${y}</span>`;
-      sh+=`<div style="display:flex;gap:2px;flex:1;">`;
+      sh+=`<div style="margin-bottom:5px;"><div style="display:flex;align-items:center;gap:8px;cursor:pointer;" onclick="var strip=this.nextElementSibling;strip.style.display=strip.style.display==='none'?'flex':'none';this.querySelector('.sc').textContent=strip.style.display==='none'?'▸':'▾'"><span style="font-family:var(--font-display);font-size:13px;font-weight:600;color:var(--primary-deep);min-width:62px;">${+m}月 ${y}</span><span class="sc" style="font-size:10px;color:var(--text-muted);">▾</span></div>`;
+      sh+=`<div style="display:flex;gap:2px;">`;
       for(let d=1;d<=dim;d++){
         const dk=mk+'-'+String(d).padStart(2,'0');
         const c=dayCounts[dk]||0;
@@ -1437,7 +1437,7 @@ function renderTimeline(){
         const isT=(+y===np.y&&+m===np.mo&&d===np.day);
         sh+=`<div onclick="tlStripJump('${dk}')" title="${+m}月${d}日 · ${c}条" style="flex:1;height:14px;border-radius:2px;background:${bg};cursor:${c?'pointer':'default'};min-width:0;${isT?'outline:1.5px solid var(--primary);outline-offset:1px;':''}transition:transform 0.15s;" ${c?'onmouseover="this.style.transform=\'scaleY(1.6)\'" onmouseout="this.style.transform=\'\'"':''}></div>`;
       }
-      sh+=`</div></div></div>`;
+      sh+=`</div></div>`;
     });
     strip.innerHTML=sh;
   }
