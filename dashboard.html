@@ -1417,7 +1417,28 @@ function renderTimeline(){
     allDays.forEach(dk=>{const mk=dk.slice(0,7);if(!monthMap[mk])monthMap[mk]=[];monthMap[mk].push(dk);});
     const sortedMK=Object.keys(monthMap).sort((a,b)=>b.localeCompare(a));
     let sh='';
-    sortedMK.forEach(mk=>{
+    if(sortedMK.length>3){
+      sh+=`<div id="tl-strip-more" style="display:none;">`;
+      sortedMK.slice(3).forEach(mk=>{
+        const[y,m]=mk.split('-');
+        const dim=new Date(+y,+m,0).getDate();
+        sh+=`<div style="margin-bottom:10px;"><div style="display:flex;align-items:center;gap:8px;cursor:pointer;" onclick="var strip=this.nextElementSibling;strip.style.display=strip.style.display==='none'?'flex':'none';this.querySelector('.sc').textContent=strip.style.display==='none'?'▸':'▾'"><span style="font-family:var(--font-display);font-size:13px;font-weight:600;color:var(--primary-deep);min-width:62px;">${+m}月 ${y}</span><span class="sc" style="font-size:10px;color:var(--text-muted);">▾</span></div>`;
+        sh+=`<div style="display:flex;gap:2px;">`;
+        for(let d=1;d<=dim;d++){
+          const dk=mk+'-'+String(d).padStart(2,'0');
+          const c=dayCounts[dk]||0;
+          const r=c/maxC;
+          let bg='var(--bg)';
+          if(c>0){if(r<=0.2)bg='#E8E0F4';else if(r<=0.4)bg='#D4C8E8';else if(r<=0.6)bg='#BFA8DC';else if(r<=0.8)bg='#9B8EC4';else bg='#7B68AE';}
+          const np=shanghaiParts(new Date());
+          const isT=(+y===np.y&&+m===np.mo&&d===np.day);
+          sh+=`<div onclick="tlStripJump('${dk}');${c?'tlPlayNote('+c+')':''}" title="${+m}月${d}日 · ${c}条" style="flex:1;height:14px;border-radius:2px;background:${bg};cursor:${c?'pointer':'default'};min-width:0;${isT?'outline:1.5px solid var(--primary);outline-offset:1px;':''}transition:transform 0.15s;" ${c?'onmouseover="this.style.transform=\'scaleY(1.6)\'" onmouseout="this.style.transform=\'\'"':''}></div>`;
+        }
+        sh+=`</div></div>`;
+      });
+      sh+=`</div>`;
+    }
+    sortedMK.slice(0,3).forEach(mk=>{
       const[y,m]=mk.split('-');
       const dim=new Date(+y,+m,0).getDate();
       sh+=`<div style="margin-bottom:10px;">`;
@@ -1435,12 +1456,31 @@ function renderTimeline(){
         }
         const np=shanghaiParts(new Date());
         const isT=(+y===np.y&&+m===np.mo&&d===np.day);
-        sh+=`<div onclick="tlStripJump('${dk}')" title="${+m}月${d}日 · ${c}条" style="flex:1;height:14px;border-radius:2px;background:${bg};cursor:${c?'pointer':'default'};min-width:0;${isT?'outline:1.5px solid var(--primary);outline-offset:1px;':''}transition:transform 0.15s;" ${c?'onmouseover="this.style.transform=\'scaleY(1.6)\'" onmouseout="this.style.transform=\'\'"':''}></div>`;
+        sh+=`<div onclick="tlStripJump('${dk}');${c?'tlPlayNote('+c+')':''}" title="${+m}月${d}日 · ${c}条" style="flex:1;height:14px;border-radius:2px;background:${bg};cursor:${c?'pointer':'default'};min-width:0;${isT?'outline:1.5px solid var(--primary);outline-offset:1px;':''}transition:transform 0.15s;" ${c?'onmouseover="this.style.transform=\'scaleY(1.6)\'" onmouseout="this.style.transform=\'\'"':''}></div>`;
       }
       sh+=`</div></div>`;
     });
+    if(sortedMK.length>3){
+      sh+=`<div style="text-align:center;"><button onclick="var m=document.getElementById('tl-strip-more');var show=m.style.display==='none';m.style.display=show?'':'none';this.textContent=show?'收起 ↑':'展开更早 · 还有 ${sortedMK.length-3} 个月';" style="padding:5px 16px;border:1px solid var(--border);border-radius:14px;font-size:11px;font-family:var(--font-body);color:var(--text-secondary);background:var(--card);cursor:pointer;">展开更早 · 还有 ${sortedMK.length-3} 个月</button></div>`;
+    }
     strip.innerHTML=sh;
   }
+  /* 色带音效 */
+  window.tlPlayNote=function(count){
+    try{
+      const ctx=new(window.AudioContext||window.webkitAudioContext)();
+      const notes=[261.6,293.7,329.6,349.2,392.0,440.0,493.9,523.3,587.3,659.3];
+      const freq=notes[Math.min(count,notes.length)-1]||261.6;
+      const osc=ctx.createOscillator();
+      const gain=ctx.createGain();
+      osc.type='sine';
+      osc.frequency.value=freq;
+      gain.gain.setValueAtTime(0.15,ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.4);
+      osc.connect(gain);gain.connect(ctx.destination);
+      osc.start();osc.stop(ctx.currentTime+0.4);
+    }catch(e){}
+  };
   window.tlStripJump=function(dk){
     const mk=dk.slice(0,7);
     if(tlMode==='month'){
