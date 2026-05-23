@@ -849,7 +849,7 @@ async def hold(
     final_valence = valence if 0 <= valence <= 1 else auto_valence
     final_arousal = arousal if 0 <= arousal <= 1 else auto_arousal
 
-    all_tags = list(dict.fromkeys(auto_tags + extra_tags))
+    all_tags = extra_tags if extra_tags else auto_tags[:5]
 
     # --- Pinned buckets bypass merge and are created directly in permanent dir ---
     # --- 钉选桶跳过合并，直接新建到 permanent 目录 ---
