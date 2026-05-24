@@ -1423,7 +1423,7 @@ function renderTimeline(){
         const[y,m]=mk.split('-');
         const dim=new Date(+y,+m,0).getDate();
         sh+=`<div style="margin-bottom:10px;"><div style="display:flex;align-items:center;gap:8px;cursor:pointer;" onclick="var strip=this.nextElementSibling;strip.style.display=strip.style.display==='none'?'grid':'none';this.querySelector('.sc').textContent=strip.style.display==='none'?'▸':'▾'"><span style="font-family:var(--font-display);font-size:13px;font-weight:600;color:var(--primary-deep);min-width:62px;">${+m}月 ${y}</span><span class="sc" style="font-size:10px;color:var(--text-muted);">▾</span></div>`;
-        sh+=`<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;max-width:280px;">`;
+        sh+=`<div style="display:flex;gap:2px;">`;
         for(let d=1;d<=dim;d++){
           const dk=mk+'-'+String(d).padStart(2,'0');
           const c=dayCounts[dk]||0;
@@ -1432,8 +1432,7 @@ function renderTimeline(){
           if(c>0){if(r<=0.2)bg='#E8E0F4';else if(r<=0.4)bg='#D4C8E8';else if(r<=0.6)bg='#BFA8DC';else if(r<=0.8)bg='#9B8EC4';else bg='#7B68AE';}
           const np=shanghaiParts(new Date());
           const isT=(+y===np.y&&+m===np.mo&&d===np.day);
-          const tx=r>0.5?'white':c>0?'var(--primary-deep)':'var(--text-muted)';
-        sh+=`<div onclick="tlStripJump('${dk}');${c?'tlPlayNote('+c+')':''}" title="${+m}月${d}日 · ${c}条" style="height:28px;border-radius:4px;background:${bg};cursor:${c?'pointer':'default'};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;color:${tx};${isT?'outline:2px solid var(--primary);outline-offset:1px;':''}transition:transform 0.15s;" ${c?'onmouseover="this.style.transform=\'scale(1.1)\';tlPlayNote('+c+')" onmouseout="this.style.transform=\'\'"':''}>${d}</div>`;
+          sh+=`<div onclick="tlStripJump('${dk}');${c?'tlPlayNote('+c+')':''}" title="${+m}月${d}日 · ${c}条" style="flex:1;height:14px;border-radius:2px;background:${bg};cursor:${c?'pointer':'default'};min-width:0;${isT?'outline:1.5px solid var(--primary);outline-offset:1px;':''}transition:transform 0.15s;" ${c?'onmouseover="this.style.transform=\'scaleY(1.6)\';tlPlayNote('+c+')" onmouseout="this.style.transform=\'\'"':''}></div>`;
         }
         sh+=`</div></div>`;
       });
@@ -1444,7 +1443,7 @@ function renderTimeline(){
       const dim=new Date(+y,+m,0).getDate();
       sh+=`<div style="margin-bottom:10px;">`;
       sh+=`<div style="margin-bottom:5px;"><div style="display:flex;align-items:center;gap:8px;cursor:pointer;" onclick="var strip=this.nextElementSibling;strip.style.display=strip.style.display==='none'?'grid':'none';this.querySelector('.sc').textContent=strip.style.display==='none'?'▸':'▾'"><span style="font-family:var(--font-display);font-size:13px;font-weight:600;color:var(--primary-deep);min-width:62px;">${+m}月 ${y}</span><span class="sc" style="font-size:10px;color:var(--text-muted);">▾</span></div>`;
-      sh+=`<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;max-width:280px;">`;
+      sh+=`<div style="display:flex;gap:2px;">`;
       for(let d=1;d<=dim;d++){
         const dk=mk+'-'+String(d).padStart(2,'0');
         const c=dayCounts[dk]||0;
@@ -1457,8 +1456,7 @@ function renderTimeline(){
         }
         const np=shanghaiParts(new Date());
         const isT=(+y===np.y&&+m===np.mo&&d===np.day);
-        const tx=r>0.5?'white':c>0?'var(--primary-deep)':'var(--text-muted)';
-        sh+=`<div onclick="tlStripJump('${dk}');${c?'tlPlayNote('+c+')':''}" title="${+m}月${d}日 · ${c}条" style="height:28px;border-radius:4px;background:${bg};cursor:${c?'pointer':'default'};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;color:${tx};${isT?'outline:2px solid var(--primary);outline-offset:1px;':''}transition:transform 0.15s;" ${c?'onmouseover="this.style.transform=\'scale(1.1)\';tlPlayNote('+c+')" onmouseout="this.style.transform=\'\'"':''}>${d}</div>`;
+        sh+=`<div onclick="tlStripJump('${dk}');${c?'tlPlayNote('+c+')':''}" title="${+m}月${d}日 · ${c}条" style="flex:1;height:14px;border-radius:2px;background:${bg};cursor:${c?'pointer':'default'};min-width:0;${isT?'outline:1.5px solid var(--primary);outline-offset:1px;':''}transition:transform 0.15s;" ${c?'onmouseover="this.style.transform=\'scaleY(1.6)\';tlPlayNote('+c+')" onmouseout="this.style.transform=\'\'"':''}></div>`;
       }
       sh+=`</div></div>`;
     });
@@ -1535,108 +1533,113 @@ async function loadNetwork(){
   canvas.height=canvas.offsetHeight*devicePixelRatio;
   ctx.scale(devicePixelRatio,devicePixelRatio);
   const W=canvas.offsetWidth,H=canvas.offsetHeight;
-  ctx.fillStyle='#FFFFFF';ctx.fillRect(0,0,W,H);
-  ctx.fillStyle='var(--text-muted)';ctx.font='14px DM Sans,sans-serif';ctx.textAlign='center';
-  ctx.fillText('加载中…',W/2,H/2);
-  try{
-    const r=await authFetch('/api/network');if(!r)return;
-    const data=await r.json();drawNetwork(ctx,W,H,data);
-  }catch(e){ctx.fillText('加载失败',W/2,H/2+24);}
-}
-function drawNetwork(ctx,W,H,data){
-  const{nodes,edges}=data;
-  if(!nodes.length){ctx.fillStyle='#7E7694';ctx.fillText('没有记忆桶',W/2,H/2);return;}
-  /* 按type分组聚类 */
+  if(!allBuckets.length){ctx.fillStyle='#7E7694';ctx.font='14px DM Sans,sans-serif';ctx.textAlign='center';ctx.fillText('没有记忆桶',W/2,H/2);return;}
+  /* 用allBuckets按domain聚类 */
+  const domainMap={},nodeList=[];
+  allBuckets.forEach(b=>{
+    const id=bId(b),name=bName(b),domains=bDomains(b),pinned=bPinned(b),feel=bFeel(b),resolved=bResolved(b),imp=bImp(b);
+    const type=pinned?'permanent':feel?'feel':resolved?'archived':'dynamic';
+    const node={id,name,type,pinned,resolved,imp,domains:domains.filter(Boolean)};
+    nodeList.push(node);
+    node.domains.forEach(d=>{if(!domainMap[d])domainMap[d]=[];domainMap[d].push(node);});
+    if(!node.domains.length){if(!domainMap['未分类'])domainMap['未分类']=[];domainMap['未分类'].push(node);}
+  });
+  /* 为每个node选主domain（出现最少的那个，让小domain也能成簇） */
+  nodeList.forEach(n=>{
+    if(!n.domains.length){n.mainDomain='未分类';return;}
+    n.mainDomain=n.domains.reduce((best,d)=>domainMap[d].length<domainMap[best].length?d:best,n.domains[0]);
+  });
+  /* 按主domain分组 */
   const clusters={};
-  nodes.forEach(n=>{const t=n.type||'dynamic';if(!clusters[t])clusters[t]=[];clusters[t].push(n);});
-  const clusterKeys=Object.keys(clusters);
+  nodeList.forEach(n=>{if(!clusters[n.mainDomain])clusters[n.mainDomain]=[];clusters[n.mainDomain].push(n);});
+  const clusterKeys=Object.keys(clusters).sort((a,b)=>clusters[b].length-clusters[a].length);
+  /* 生成edges：共享domain的节点连线 */
+  const edgeSet=new Set(),edgeList=[];
+  Object.values(domainMap).forEach(nodes=>{
+    for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){
+      const key=[nodes[i].id,nodes[j].id].sort().join('-');
+      if(!edgeSet.has(key)){edgeSet.add(key);
+        /* 共享domain越多越强 */
+        const shared=nodes[i].domains.filter(d=>nodes[j].domains.includes(d)).length;
+        edgeList.push({source:nodes[i].id,target:nodes[j].id,strength:Math.min(shared/3,1)});
+      }
+    }
+  });
+  drawNetwork(ctx,W,H,nodeList,edgeList,clusters,clusterKeys);
+}
+function drawNetwork(ctx,W,H,nodes,edges,clusters,clusterKeys){
   const cx=W/2,cy=H/2,pos={};
-  const colors={dynamic:'#6E5BA0',permanent:'#C4787E',feel:'#B07AAF',archived:'#B0A8C0'};
-  const clusterRadius=Math.min(W,H)*0.28;
-  /* 每个cluster一个扇区 */
+  const palette=['#6E5BA0','#C4787E','#B07AAF','#7E9BB0','#8BAE6A','#C49878','#6A8EAE','#AE6A8B','#78A0C4','#A08E6E'];
+  const clusterColors={};
+  clusterKeys.forEach((ck,i)=>{clusterColors[ck]=palette[i%palette.length];});
+  const clusterRadius=Math.min(W,H)*0.32;
+  /* 布局：大簇中心，小簇外围 */
   clusterKeys.forEach((ck,ci)=>{
     const angle=(ci/clusterKeys.length)*Math.PI*2-Math.PI/2;
-    const ccx=cx+Math.cos(angle)*clusterRadius*0.55;
-    const ccy=cy+Math.sin(angle)*clusterRadius*0.55;
+    const dist=clusterKeys.length<=3?clusterRadius*0.4:clusterRadius*0.55;
+    const ccx=cx+Math.cos(angle)*dist;
+    const ccy=cy+Math.sin(angle)*dist;
     const items=clusters[ck];
-    const subR=Math.min(clusterRadius*0.4,items.length*8+30);
+    const subR=Math.min(clusterRadius*0.45,items.length*10+25);
     items.forEach((n,ni)=>{
       const sa=(ni/items.length)*Math.PI*2;
-      const sr=subR*(0.3+Math.random()*0.7);
+      const sr=subR*(0.3+Math.random()*0.65);
       pos[n.id]={x:ccx+Math.cos(sa)*sr,y:ccy+Math.sin(sa)*sr,cx:ccx,cy:ccy};
     });
   });
-  /* 力导向微调 */
-  for(let it=0;it<60;it++){
+  /* 力导向 */
+  for(let it=0;it<80;it++){
     for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){
       const a=pos[nodes[i].id],b=pos[nodes[j].id];
       let dx=b.x-a.x,dy=b.y-a.y;
-      const d=Math.max(1,Math.sqrt(dx*dx+dy*dy)),f=400/(d*d);
+      const d=Math.max(1,Math.sqrt(dx*dx+dy*dy)),f=1000/(d*d);
       a.x-=dx/d*f;a.y-=dy/d*f;b.x+=dx/d*f;b.y+=dy/d*f;
     }
-    /* 拉回聚类中心 */
-    nodes.forEach(n=>{const p=pos[n.id];p.x+=(p.cx-p.x)*0.08;p.y+=(p.cy-p.y)*0.08;});
-    /* edges吸引 */
     edges.forEach(e=>{const a=pos[e.source],b=pos[e.target];if(!a||!b)return;
       let dx=b.x-a.x,dy=b.y-a.y;const d=Math.max(1,Math.sqrt(dx*dx+dy*dy));
-      const f=(d-60)*0.005*(e.similarity||0.5);
+      const f=(d-80)*0.008*e.strength;
       a.x+=dx/d*f;a.y+=dy/d*f;b.x-=dx/d*f;b.y-=dy/d*f;});
+    nodes.forEach(n=>{const p=pos[n.id];p.x+=(p.cx-p.x)*0.06;p.y+=(p.cy-p.y)*0.06;});
   }
-  /* 绘制背景 */
+  /* 背景 */
   ctx.fillStyle='#FFFFFF';ctx.fillRect(0,0,W,H);
-  /* 绘制聚类区域底色 */
+  /* 聚类底色 */
   clusterKeys.forEach(ck=>{
-    const items=clusters[ck];const c=colors[ck]||'#6E5BA0';
+    const items=clusters[ck],c=clusterColors[ck];
     let sumX=0,sumY=0;
     items.forEach(n=>{const p=pos[n.id];sumX+=p.x;sumY+=p.y;});
     const avgX=sumX/items.length,avgY=sumY/items.length;
     let maxD=0;
     items.forEach(n=>{const p=pos[n.id];const d=Math.sqrt((p.x-avgX)**2+(p.y-avgY)**2);if(d>maxD)maxD=d;});
-    const grad=ctx.createRadialGradient(avgX,avgY,0,avgX,avgY,maxD+40);
-    grad.addColorStop(0,c+'12');grad.addColorStop(1,c+'03');
-    ctx.beginPath();ctx.arc(avgX,avgY,maxD+40,0,Math.PI*2);ctx.fillStyle=grad;ctx.fill();
+    const grad=ctx.createRadialGradient(avgX,avgY,0,avgX,avgY,maxD+50);
+    grad.addColorStop(0,c+'15');grad.addColorStop(1,c+'03');
+    ctx.beginPath();ctx.arc(avgX,avgY,maxD+50,0,Math.PI*2);ctx.fillStyle=grad;ctx.fill();
     /* 聚类标签 */
-    ctx.fillStyle=c+'90';ctx.font='bold 12px DM Sans,sans-serif';ctx.textAlign='center';
-    ctx.fillText(ck,avgX,avgY-maxD-12);
+    ctx.fillStyle=c+'80';ctx.font='600 13px DM Sans,sans-serif';ctx.textAlign='center';
+    ctx.fillText(ck,avgX,avgY-maxD-16);
   });
-  /* 绘制edges */
+  /* 连线 */
   edges.forEach(e=>{const a=pos[e.source],b=pos[e.target];if(!a||!b)return;
-    const mx=(a.x+b.x)/2+(Math.random()-0.5)*20,my=(a.y+b.y)/2+(Math.random()-0.5)*20;
-    ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.quadraticCurveTo(mx,my,b.x,b.y);
-    ctx.strokeStyle=`rgba(155,142,196,${(e.similarity||0.3)*0.4})`;
-    ctx.lineWidth=Math.max(0.5,(e.similarity||0.3)*2);ctx.stroke();});
-  /* 绘制同cluster内的淡连线 */
-  clusterKeys.forEach(ck=>{
-    const items=clusters[ck];const c=colors[ck]||'#6E5BA0';
-    for(let i=0;i<items.length;i++){
-      const ni=items[i],pi=pos[ni.id];
-      /* 连最近的2个同cluster节点 */
-      const dists=[];
-      for(let j=0;j<items.length;j++){if(i===j)continue;
-        const nj=items[j],pj=pos[nj.id];
-        dists.push({j,d:Math.sqrt((pi.x-pj.x)**2+(pi.y-pj.y)**2),p:pj});}
-      dists.sort((a,b)=>a.d-b.d);
-      dists.slice(0,2).forEach(({p:pj,d})=>{
-        ctx.beginPath();ctx.moveTo(pi.x,pi.y);ctx.lineTo(pj.x,pj.y);
-        ctx.strokeStyle=c+'18';ctx.lineWidth=1;ctx.stroke();
-      });
-    }
-  });
-  /* 绘制节点 */
+    ctx.beginPath();ctx.moveTo(a.x,a.y);
+    const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
+    ctx.quadraticCurveTo(mx+(Math.random()-0.5)*15,my+(Math.random()-0.5)*15,b.x,b.y);
+    ctx.strokeStyle=`rgba(155,142,196,${e.strength*0.25})`;
+    ctx.lineWidth=Math.max(0.5,e.strength*1.5);ctx.stroke();});
+  /* 节点 */
+  const typeColors={dynamic:'#6E5BA0',permanent:'#C4787E',feel:'#B07AAF',archived:'#B0A8C0'};
   nodes.forEach(n=>{
-    const p=pos[n.id];const r=Math.max(5,Math.min(12,(n.score||5)*0.6+3));
-    const c=colors[n.type]||'#6E5BA0';
+    const p=pos[n.id],r=Math.max(5,Math.min(12,(n.imp||5)*0.7+2));
+    const c=typeColors[n.type]||'#6E5BA0';
     /* 光晕 */
-    const glow=ctx.createRadialGradient(p.x,p.y,r*0.5,p.x,p.y,r*2.5);
-    glow.addColorStop(0,c+'25');glow.addColorStop(1,c+'00');
-    ctx.beginPath();ctx.arc(p.x,p.y,r*2.5,0,Math.PI*2);ctx.fillStyle=glow;ctx.fill();
+    const glow=ctx.createRadialGradient(p.x,p.y,r*0.3,p.x,p.y,r*2);
+    glow.addColorStop(0,c+'20');glow.addColorStop(1,c+'00');
+    ctx.beginPath();ctx.arc(p.x,p.y,r*2,0,Math.PI*2);ctx.fillStyle=glow;ctx.fill();
     /* 主体 */
     ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);
-    ctx.fillStyle=n.resolved?c+'60':c;ctx.fill();
-    /* 钉选环 */
-    if(n.pinned){ctx.strokeStyle='#C4787E';ctx.lineWidth=2.5;ctx.stroke();}
+    ctx.fillStyle=n.resolved?c+'50':c;ctx.fill();
+    if(n.pinned){ctx.strokeStyle='#C4787E';ctx.lineWidth=2;ctx.stroke();}
     /* 标签 */
-    const nm=n.name.length>8?n.name.slice(0,8)+'…':n.name;
+    const nm=n.name.length>10?n.name.slice(0,10)+'…':n.name;
     ctx.fillStyle='#3A3150';ctx.font='11px DM Sans,sans-serif';ctx.textAlign='center';
     ctx.fillText(nm,p.x,p.y+r+14);
   });
