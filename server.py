@@ -1318,6 +1318,35 @@ async def api_bucket_detail(request):
     })
 
 
+@mcp.custom_route("/api/bucket/{bucket_id}", methods=["PATCH"])
+async def api_bucket_update(request):
+    """Update bucket fields."""
+    from starlette.responses import JSONResponse
+    err = _require_auth(request)
+    if err: return err
+    bucket_id = request.path_params["bucket_id"]
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "invalid JSON"}, status_code=400)
+    ok = await bucket_mgr.update(bucket_id, **body)
+    if ok:
+        return JSONResponse({"ok": True})
+    return JSONResponse({"error": "not found or update failed"}, status_code=404)
+
+
+@mcp.custom_route("/api/bucket/{bucket_id}", methods=["DELETE"])
+async def api_bucket_delete(request):
+    """Delete a bucket."""
+    from starlette.responses import JSONResponse
+    err = _require_auth(request)
+    if err: return err
+    bucket_id = request.path_params["bucket_id"]
+    ok = await bucket_mgr.delete(bucket_id)
+    if ok:
+        return JSONResponse({"ok": True})
+    return JSONResponse({"error": "not found"}, status_code=404)
+    
 @mcp.custom_route("/api/search", methods=["GET"])
 async def api_search(request):
     """Search buckets by query."""
