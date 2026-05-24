@@ -1422,8 +1422,8 @@ function renderTimeline(){
       sortedMK.slice(3).forEach(mk=>{
         const[y,m]=mk.split('-');
         const dim=new Date(+y,+m,0).getDate();
-        sh+=`<div style="margin-bottom:10px;"><div style="display:flex;align-items:center;gap:8px;cursor:pointer;" onclick="var strip=this.nextElementSibling;strip.style.display=strip.style.display==='none'?'flex':'none';this.querySelector('.sc').textContent=strip.style.display==='none'?'▸':'▾'"><span style="font-family:var(--font-display);font-size:13px;font-weight:600;color:var(--primary-deep);min-width:62px;">${+m}月 ${y}</span><span class="sc" style="font-size:10px;color:var(--text-muted);">▾</span></div>`;
-        sh+=`<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;">`;
+        sh+=`<div style="margin-bottom:10px;"><div style="display:flex;align-items:center;gap:8px;cursor:pointer;" onclick="var strip=this.nextElementSibling;strip.style.display=strip.style.display==='none'?'grid':'none';this.querySelector('.sc').textContent=strip.style.display==='none'?'▸':'▾'"><span style="font-family:var(--font-display);font-size:13px;font-weight:600;color:var(--primary-deep);min-width:62px;">${+m}月 ${y}</span><span class="sc" style="font-size:10px;color:var(--text-muted);">▾</span></div>`;
+        sh+=`<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;max-width:280px;">`;
         for(let d=1;d<=dim;d++){
           const dk=mk+'-'+String(d).padStart(2,'0');
           const c=dayCounts[dk]||0;
@@ -1443,8 +1443,8 @@ function renderTimeline(){
       const[y,m]=mk.split('-');
       const dim=new Date(+y,+m,0).getDate();
       sh+=`<div style="margin-bottom:10px;">`;
-      sh+=`<div style="margin-bottom:5px;"><div style="display:flex;align-items:center;gap:8px;cursor:pointer;" onclick="var strip=this.nextElementSibling;strip.style.display=strip.style.display==='none'?'flex':'none';this.querySelector('.sc').textContent=strip.style.display==='none'?'▸':'▾'"><span style="font-family:var(--font-display);font-size:13px;font-weight:600;color:var(--primary-deep);min-width:62px;">${+m}月 ${y}</span><span class="sc" style="font-size:10px;color:var(--text-muted);">▾</span></div>`;
-      sh+=`<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;">`;
+      sh+=`<div style="margin-bottom:5px;"><div style="display:flex;align-items:center;gap:8px;cursor:pointer;" onclick="var strip=this.nextElementSibling;strip.style.display=strip.style.display==='none'?'grid':'none';this.querySelector('.sc').textContent=strip.style.display==='none'?'▸':'▾'"><span style="font-family:var(--font-display);font-size:13px;font-weight:600;color:var(--primary-deep);min-width:62px;">${+m}月 ${y}</span><span class="sc" style="font-size:10px;color:var(--text-muted);">▾</span></div>`;
+      sh+=`<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;max-width:280px;">`;
       for(let d=1;d<=dim;d++){
         const dk=mk+'-'+String(d).padStart(2,'0');
         const c=dayCounts[dk]||0;
@@ -1546,31 +1546,100 @@ async function loadNetwork(){
 function drawNetwork(ctx,W,H,data){
   const{nodes,edges}=data;
   if(!nodes.length){ctx.fillStyle='#7E7694';ctx.fillText('没有记忆桶',W/2,H/2);return;}
-  const pos={};const cx=W/2,cy=H/2;
-  nodes.forEach((n,i)=>{const a=(i/nodes.length)*Math.PI*2,r=Math.min(W,H)*0.35;
-    pos[n.id]={x:cx+Math.cos(a)*r+(Math.random()-0.5)*50,y:cy+Math.sin(a)*r+(Math.random()-0.5)*50};});
-  for(let it=0;it<80;it++){
-    for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){
-      const a=pos[nodes[i].id],b=pos[nodes[j].id];let dx=b.x-a.x,dy=b.y-a.y;
-      const d=Math.max(1,Math.sqrt(dx*dx+dy*dy)),f=800/(d*d);dx=dx/d*f;dy=dy/d*f;
-      a.x-=dx;a.y-=dy;b.x+=dx;b.y+=dy;}
-    edges.forEach(e=>{const a=pos[e.source],b=pos[e.target];if(!a||!b)return;
-      let dx=b.x-a.x,dy=b.y-a.y;const d=Math.sqrt(dx*dx+dy*dy);
-      const f=(d-100)*0.01*(e.similarity||0.5);dx=dx/Math.max(1,d)*f;dy=dy/Math.max(1,d)*f;
-      a.x+=dx;a.y+=dy;b.x-=dx;b.y-=dy;});
-    nodes.forEach(n=>{const p=pos[n.id];p.x+=(cx-p.x)*0.01;p.y+=(cy-p.y)*0.01;});
-  }
-  ctx.fillStyle='#FFFFFF';ctx.fillRect(0,0,W,H);
-  edges.forEach(e=>{const a=pos[e.source],b=pos[e.target];if(!a||!b)return;
-    ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);
-    ctx.strokeStyle=`rgba(155,142,196,${e.similarity*0.35})`;ctx.lineWidth=Math.max(0.5,e.similarity*2);ctx.stroke();});
+  /* 按type分组聚类 */
+  const clusters={};
+  nodes.forEach(n=>{const t=n.type||'dynamic';if(!clusters[t])clusters[t]=[];clusters[t].push(n);});
+  const clusterKeys=Object.keys(clusters);
+  const cx=W/2,cy=H/2,pos={};
   const colors={dynamic:'#6E5BA0',permanent:'#C4787E',feel:'#B07AAF',archived:'#B0A8C0'};
-  nodes.forEach(n=>{const p=pos[n.id];const r=Math.max(4,Math.min(14,n.score*0.8));const c=colors[n.type]||'#6E5BA0';
-    ctx.beginPath();ctx.arc(p.x,p.y,r+4,0,Math.PI*2);ctx.fillStyle=c+'15';ctx.fill();
-    ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.fillStyle=n.resolved?c+'70':c;ctx.fill();
-    if(n.pinned){ctx.strokeStyle='#C4787E';ctx.lineWidth=2;ctx.stroke();}
-    const nm=n.name.length>10?n.name.slice(0,10)+'…':n.name;
-    ctx.fillStyle='#3A3150';ctx.font='11px DM Sans,sans-serif';ctx.textAlign='center';ctx.fillText(nm,p.x,p.y+r+14);});
+  const clusterRadius=Math.min(W,H)*0.28;
+  /* 每个cluster一个扇区 */
+  clusterKeys.forEach((ck,ci)=>{
+    const angle=(ci/clusterKeys.length)*Math.PI*2-Math.PI/2;
+    const ccx=cx+Math.cos(angle)*clusterRadius*0.55;
+    const ccy=cy+Math.sin(angle)*clusterRadius*0.55;
+    const items=clusters[ck];
+    const subR=Math.min(clusterRadius*0.4,items.length*8+30);
+    items.forEach((n,ni)=>{
+      const sa=(ni/items.length)*Math.PI*2;
+      const sr=subR*(0.3+Math.random()*0.7);
+      pos[n.id]={x:ccx+Math.cos(sa)*sr,y:ccy+Math.sin(sa)*sr,cx:ccx,cy:ccy};
+    });
+  });
+  /* 力导向微调 */
+  for(let it=0;it<60;it++){
+    for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){
+      const a=pos[nodes[i].id],b=pos[nodes[j].id];
+      let dx=b.x-a.x,dy=b.y-a.y;
+      const d=Math.max(1,Math.sqrt(dx*dx+dy*dy)),f=400/(d*d);
+      a.x-=dx/d*f;a.y-=dy/d*f;b.x+=dx/d*f;b.y+=dy/d*f;
+    }
+    /* 拉回聚类中心 */
+    nodes.forEach(n=>{const p=pos[n.id];p.x+=(p.cx-p.x)*0.08;p.y+=(p.cy-p.y)*0.08;});
+    /* edges吸引 */
+    edges.forEach(e=>{const a=pos[e.source],b=pos[e.target];if(!a||!b)return;
+      let dx=b.x-a.x,dy=b.y-a.y;const d=Math.max(1,Math.sqrt(dx*dx+dy*dy));
+      const f=(d-60)*0.005*(e.similarity||0.5);
+      a.x+=dx/d*f;a.y+=dy/d*f;b.x-=dx/d*f;b.y-=dy/d*f;});
+  }
+  /* 绘制背景 */
+  ctx.fillStyle='#FFFFFF';ctx.fillRect(0,0,W,H);
+  /* 绘制聚类区域底色 */
+  clusterKeys.forEach(ck=>{
+    const items=clusters[ck];const c=colors[ck]||'#6E5BA0';
+    let sumX=0,sumY=0;
+    items.forEach(n=>{const p=pos[n.id];sumX+=p.x;sumY+=p.y;});
+    const avgX=sumX/items.length,avgY=sumY/items.length;
+    let maxD=0;
+    items.forEach(n=>{const p=pos[n.id];const d=Math.sqrt((p.x-avgX)**2+(p.y-avgY)**2);if(d>maxD)maxD=d;});
+    const grad=ctx.createRadialGradient(avgX,avgY,0,avgX,avgY,maxD+40);
+    grad.addColorStop(0,c+'12');grad.addColorStop(1,c+'03');
+    ctx.beginPath();ctx.arc(avgX,avgY,maxD+40,0,Math.PI*2);ctx.fillStyle=grad;ctx.fill();
+    /* 聚类标签 */
+    ctx.fillStyle=c+'90';ctx.font='bold 12px DM Sans,sans-serif';ctx.textAlign='center';
+    ctx.fillText(ck,avgX,avgY-maxD-12);
+  });
+  /* 绘制edges */
+  edges.forEach(e=>{const a=pos[e.source],b=pos[e.target];if(!a||!b)return;
+    const mx=(a.x+b.x)/2+(Math.random()-0.5)*20,my=(a.y+b.y)/2+(Math.random()-0.5)*20;
+    ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.quadraticCurveTo(mx,my,b.x,b.y);
+    ctx.strokeStyle=`rgba(155,142,196,${(e.similarity||0.3)*0.4})`;
+    ctx.lineWidth=Math.max(0.5,(e.similarity||0.3)*2);ctx.stroke();});
+  /* 绘制同cluster内的淡连线 */
+  clusterKeys.forEach(ck=>{
+    const items=clusters[ck];const c=colors[ck]||'#6E5BA0';
+    for(let i=0;i<items.length;i++){
+      const ni=items[i],pi=pos[ni.id];
+      /* 连最近的2个同cluster节点 */
+      const dists=[];
+      for(let j=0;j<items.length;j++){if(i===j)continue;
+        const nj=items[j],pj=pos[nj.id];
+        dists.push({j,d:Math.sqrt((pi.x-pj.x)**2+(pi.y-pj.y)**2),p:pj});}
+      dists.sort((a,b)=>a.d-b.d);
+      dists.slice(0,2).forEach(({p:pj,d})=>{
+        ctx.beginPath();ctx.moveTo(pi.x,pi.y);ctx.lineTo(pj.x,pj.y);
+        ctx.strokeStyle=c+'18';ctx.lineWidth=1;ctx.stroke();
+      });
+    }
+  });
+  /* 绘制节点 */
+  nodes.forEach(n=>{
+    const p=pos[n.id];const r=Math.max(5,Math.min(12,(n.score||5)*0.6+3));
+    const c=colors[n.type]||'#6E5BA0';
+    /* 光晕 */
+    const glow=ctx.createRadialGradient(p.x,p.y,r*0.5,p.x,p.y,r*2.5);
+    glow.addColorStop(0,c+'25');glow.addColorStop(1,c+'00');
+    ctx.beginPath();ctx.arc(p.x,p.y,r*2.5,0,Math.PI*2);ctx.fillStyle=glow;ctx.fill();
+    /* 主体 */
+    ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);
+    ctx.fillStyle=n.resolved?c+'60':c;ctx.fill();
+    /* 钉选环 */
+    if(n.pinned){ctx.strokeStyle='#C4787E';ctx.lineWidth=2.5;ctx.stroke();}
+    /* 标签 */
+    const nm=n.name.length>8?n.name.slice(0,8)+'…':n.name;
+    ctx.fillStyle='#3A3150';ctx.font='11px DM Sans,sans-serif';ctx.textAlign='center';
+    ctx.fillText(nm,p.x,p.y+r+14);
+  });
 }
 
 /* ═══════════════════════════════════════
