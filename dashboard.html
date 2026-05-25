@@ -875,6 +875,7 @@ body {
         <div class="edit-field"><label class="edit-lbl">标题</label><input class="edit-inp" id="e-name" type="text"></div>
         <div class="edit-field"><label class="edit-lbl">内容</label><textarea class="edit-txt" id="e-content"></textarea></div>
         <div class="edit-field"><label class="edit-lbl">标签（逗号分隔）</label><input class="edit-inp" id="e-tags" type="text"></div>
+        <div class="edit-field"><label class="edit-lbl">领域（逗号分隔）</label><input class="edit-inp" id="e-domain" type="text"></div>
 </div>
     </div></div>
     <div class="modal-actions">
@@ -1253,6 +1254,7 @@ async function openDetail(id){
   document.getElementById('e-name').value=name;
   document.getElementById('e-content').value=content;
   document.getElementById('e-tags').value=tags.join(', ');
+  document.getElementById('e-domain').value=domains.filter(Boolean).join(', ');
   document.getElementById('modal-overlay').classList.add('open');
   document.body.style.overflow='hidden';
 }
@@ -1262,7 +1264,8 @@ document.getElementById('btn-save').onclick=async()=>{
   if(!currentBucket)return;
   const id=bId(currentBucket);
   const up={name:document.getElementById('e-name').value.trim(),content:document.getElementById('e-content').value.trim(),
-    tags:document.getElementById('e-tags').value.split(/[,，]/).map(s=>s.trim()).filter(Boolean)};
+    tags:document.getElementById('e-tags').value.split(/[,，]/).map(s=>s.trim()).filter(Boolean),
+    domain:document.getElementById('e-domain').value.split(/[,，]/).map(s=>s.trim()).filter(Boolean)};
   try{
     const r=await authFetch('/api/bucket/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(up)});
     if(r&&r.ok){showToast('已保存 ✓');closeModal();await reload();}
