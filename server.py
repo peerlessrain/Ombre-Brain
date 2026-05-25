@@ -804,9 +804,9 @@ async def hold(
         feel_arousal = arousal if 0 <= arousal <= 1 else 0.3
         bucket_id = await bucket_mgr.create(
             content=content,
-            tags=[],
+            tags=["feel"],
             importance=5,
-            domain=[],
+            domain=["feel"],
             valence=feel_valence,
             arousal=feel_arousal,
             name=None,
