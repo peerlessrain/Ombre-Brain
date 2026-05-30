@@ -1115,6 +1115,8 @@ async def pulse(include_archive: bool = False) -> str:
         val = meta.get("valence", 0.5)
         aro = meta.get("arousal", 0.3)
         resolved_tag = " [已解决]" if meta.get("resolved", False) else ""
+        created = meta.get('created', meta.get('last_active', ''))
+        created_short = created[:10] if created else ''
         lines.append(
             f"{icon} [{meta.get('name', b['id'])}]{resolved_tag} "
             f"bucket_id:{b['id']} "
@@ -1123,6 +1125,7 @@ async def pulse(include_archive: bool = False) -> str:
             f"重要:{meta.get('importance', '?')} "
             f"权重:{score:.2f} "
             f"标签:{','.join(meta.get('tags', []))}"
+            f"{' 创建:' + created_short if created_short else ''}"
         )
 
     return status + "\n=== 记忆列表 ===\n" + "\n".join(lines)
