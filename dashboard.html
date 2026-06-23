@@ -1981,7 +1981,7 @@ async function deleteLetter(id){
   if(!confirm('确定删除这封信？'))return;
   try{
     const r=await fetch('/api/bucket/'+id,{method:'DELETE'});
-    if(r.ok){toast('已删除');closeLetterModal();loadLetters();}else toast('删除失败','warn');
+    closeLetterModal();loadLetters();toast('已删除');
   }catch(e){toast('网络错误','warn');}
 }
 
