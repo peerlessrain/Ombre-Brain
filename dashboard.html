@@ -647,6 +647,9 @@ body {
       <div class="nav-tab" data-tab="import">导入</div>
       <div class="nav-tab" data-tab="timeline">时间线</div>
       <div class="nav-tab" data-tab="settings">设置</div>
+      <div class="nav-tab" data-tab="letters">信</div>
+      <div class="nav-tab" data-tab="anchors">锚点</div>
+      <div class="nav-tab" data-tab="iself">I</div>
     </div>
   </div>
 </header>
@@ -849,6 +852,45 @@ body {
   </div>
 </div>
 
+<!-- ═══ Letters Tab ═══ -->
+<div class="content-area" id="view-letters" style="display:none">
+  <div style="max-width:640px;margin:0 auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <h3 style="margin:0;color:var(--text);">信件</h3>
+      <button class="btn btn-pri" onclick="toggleLetterForm()">写信</button>
+    </div>
+    <div id="letter-form" style="display:none;margin-bottom:20px;padding:16px;background:var(--bg-card);border-radius:12px;border:1px solid var(--border);">
+      <div style="margin-bottom:8px;display:flex;gap:8px;">
+        <select id="letter-author" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:13px;">
+          <option value="user">我写给小克</option>
+          <option value="claude">小克写给我</option>
+        </select>
+        <input id="letter-title" placeholder="标题（可选）" style="flex:1;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:13px;">
+      </div>
+      <textarea id="letter-content" rows="6" placeholder="写下你想说的话…" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;resize:vertical;box-sizing:border-box;"></textarea>
+      <button class="btn btn-pri" onclick="sendLetter()" style="margin-top:8px;">寄出</button>
+    </div>
+    <div id="letter-list" style="color:var(--text-secondary);font-size:13px;">加载中…</div>
+  </div>
+</div>
+
+<!-- ═══ Anchors Tab ═══ -->
+<div class="content-area" id="view-anchors" style="display:none">
+  <div style="max-width:640px;margin:0 auto;">
+    <h3 style="margin:0 0 8px;color:var(--text);">锚点 <span id="anchor-count" style="font-size:13px;color:var(--text-muted);"></span></h3>
+    <p style="font-size:12px;color:var(--text-muted);margin:0 0 16px;">不主动浮现，但关键词命中时永远在那里。上限 24。</p >
+    <div id="anchor-list" style="color:var(--text-secondary);font-size:13px;">加载中…</div>
+  </div>
+</div>
+
+<!-- ═══ I (Self) Tab ═══ -->
+<div class="content-area" id="view-iself" style="display:none">
+  <div style="max-width:640px;margin:0 auto;">
+    <h3 style="margin:0 0 16px;color:var(--text);">🪞 I — 自我认知</h3>
+    <div id="i-list" style="color:var(--text-secondary);font-size:13px;">加载中…</div>
+  </div>
+</div>
+
 <!-- ═══ Detail Modal ═══ -->
 <div class="modal-overlay" id="modal-overlay">
   <div class="modal-box">
@@ -940,7 +982,7 @@ async function authFetch(url,opt){
 /* ═══════════════════════════════════════
    Tab Navigation
    ═══════════════════════════════════════ */
-const views={list:'view-list',breath:'view-breath',network:'view-network',config:'view-config',import:'view-import',timeline:'view-timeline',settings:'view-settings'};
+const views={list:'view-list',breath:'view-breath',network:'view-network',config:'view-config',import:'view-import',timeline:'view-timeline',settings:'view-settings',letters:'view-letters',anchors:'view-anchors',iself:'view-iself'};
 document.querySelectorAll('.nav-tab').forEach(tab=>{
   tab.addEventListener('click',()=>{
     document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
@@ -948,6 +990,9 @@ document.querySelectorAll('.nav-tab').forEach(tab=>{
     const t=tab.dataset.tab;
     Object.values(views).forEach(v=>document.getElementById(v).style.display='none');
     document.getElementById(views[t]).style.display='';
+    if(t==='letters')loadLetters();
+    if(t==='anchors')loadAnchors();
+    if(t==='iself')loadISelf();
     if(t==='network')loadNetwork();
     if(t==='config')loadConfig();
     if(t==='import'){pollImportStatus();loadImportResults();}
@@ -1850,6 +1895,83 @@ function toggleTheme(){
 })();
 
 checkAuth().then(()=>init());
+/* ═══ Letters Tab ═══ */
+function toggleLetterForm(){const f=document.getElementById('letter-form');f.style.display=f.style.display==='none'?'block':'none';}
+async function sendLetter(){
+  const a=document.getElementById('letter-author').value;
+  const c=document.getElementById('letter-content').value.trim();
+  const t=document.getElementById('letter-title').value.trim();
+  if(!c){toast('内容不能为空','warn');return;}
+  try{
+    const r=await fetch('/api/letter_write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({author:a,content:c,title:t})});
+    if(r.ok){toast('信已寄出 💌');document.getElementById('letter-content').value='';document.getElementById('letter-title').value='';document.getElementById('letter-form').style.display='none';loadLetters();}
+    else toast('寄信失败','warn');
+  }catch(e){toast('网络错误','warn');}
+}
+async function loadLetters(){
+  const el=document.getElementById('letter-list');
+  try{
+    const r=await fetch('/api/buckets');const d=await r.json();
+    const letters=d.filter(b=>b.type==='letter').sort((a,b)=>(b.letter_date||b.created||'').localeCompare(a.letter_date||a.created||''));
+    if(!letters.length){el.innerHTML='<div style="text-align:center;padding:40px;color:var(--text-muted);">还没有信件。写一封吧。</div>';return;}
+    el.innerHTML=letters.map(b=>{
+      const who=b.author==='user'?'阿瑜→小克':'小克→阿瑜';
+      const d=(b.letter_date||b.created||'').slice(0,10);
+      const t=b.title||b.name||'';
+      return `<div style="padding:14px;margin-bottom:10px;background:var(--bg-card);border-radius:10px;border:1px solid var(--border);cursor:pointer;" onclick="openModal('${b.id}')">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <span style="font-size:12px;color:var(--primary);">${who}</span>
+          <span style="font-size:11px;color:var(--text-muted);">${d}</span>
+        </div>
+        ${t?`<div style="font-size:14px;color:var(--text);font-weight:500;margin-bottom:4px;">${t}</div>`:''}
+        <div style="font-size:13px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${(b.content||'').slice(0,80)}</div>
+      </div>`;
+    }).join('');
+  }catch(e){el.innerHTML='加载失败';}
+}
+
+/* ═══ Anchors Tab ═══ */
+async function loadAnchors(){
+  const el=document.getElementById('anchor-list');
+  try{
+    const r=await fetch('/api/buckets');const d=await r.json();
+    const anchors=d.filter(b=>b.anchor);
+    document.getElementById('anchor-count').textContent=`${anchors.length}/24`;
+    if(!anchors.length){el.innerHTML='<div style="text-align:center;padding:40px;color:var(--text-muted);">还没有锚点。</div>';return;}
+    el.innerHTML=anchors.map(b=>{
+      const name=b.name||b.id;
+      const domains=(b.domain||[]).join(',');
+      return `<div style="padding:12px;margin-bottom:8px;background:var(--bg-card);border-radius:10px;border:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div style="font-size:13px;color:var(--text);font-weight:500;">⚓ ${name}</div>
+          <div style="font-size:11px;color:var(--text-muted);">${domains||'未分类'}</div>
+        </div>
+        <span style="font-size:11px;color:var(--text-muted);cursor:pointer;" onclick="openModal('${b.id}')">详情</span>
+      </div>`;
+    }).join('');
+  }catch(e){el.innerHTML='加载失败';}
+}
+
+/* ═══ I (Self) Tab ═══ */
+async function loadISelf(){
+  const el=document.getElementById('i-list');
+  try{
+    const r=await fetch('/api/buckets');const d=await r.json();
+    const items=d.filter(b=>b.type==='i').sort((a,b)=>(b.last_active||'').localeCompare(a.last_active||''));
+    if(!items.length){el.innerHTML='<div style="text-align:center;padding:40px;color:var(--text-muted);">还没有自我认知记录。</div>';return;}
+    el.innerHTML=items.map(b=>{
+      const tags=(b.tags||[]).filter(t=>t.startsWith('aspect:')).map(t=>t.replace('aspect:','')).join(' ');
+      const d=(b.last_active||'').slice(0,10);
+      return `<div style="padding:14px;margin-bottom:10px;background:var(--bg-card);border-radius:10px;border:1px solid var(--border);">
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+          ${tags?`<span style="font-size:11px;padding:2px 8px;background:var(--primary-glass);color:var(--primary);border-radius:6px;">${tags}</span>`:'<span></span>'}
+          <span style="font-size:11px;color:var(--text-muted);">${d}</span>
+        </div>
+        <div style="font-size:13px;color:var(--text);line-height:1.6;white-space:pre-wrap;">${b.content||''}</div>
+      </div>`;
+    }).join('');
+  }catch(e){el.innerHTML='加载失败';}
+}
 </script>
 </body>
 </html>
