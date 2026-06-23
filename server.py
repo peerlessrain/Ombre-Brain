@@ -1463,6 +1463,33 @@ async def letter_read(
 # Dashboard API endpoints (for lightweight Web UI)
 # 仪表板 API（轻量 Web UI 用）
 # =============================================================
+@mcp.custom_route("/api/letter_write", methods=["POST"])
+async def api_letter_write(request):
+    """Write a letter via dashboard."""
+    from starlette.responses import JSONResponse
+    err = _require_auth(request)
+    if err: return err
+    try:
+        body = await request.json()
+        a = body.get("author", "").strip().lower()
+        if a not in ("user", "claude"):
+            return JSONResponse({"error": "author must be user or claude"}, status_code=400)
+        c = body.get("content", "").strip()
+        if not c:
+            return JSONResponse({"error": "content is empty"}, status_code=400)
+        t = body.get("title", "").strip()
+        bucket_id = await bucket_mgr.create(
+            content=c, tags=["__letter__"], importance=10,
+            domain=["letter"], valence=0.5, arousal=0.3,
+            name=(t[:60] or f"{a}_letter"), bucket_type="letter",
+            source_tool="letter",
+        )
+        extra = {"author": a}
+        if t: extra["title"] = t[:120]
+        await bucket_mgr.update(bucket_id, **extra)
+        return JSONResponse({"ok": True, "id": bucket_id})
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
 @mcp.custom_route("/api/buckets", methods=["GET"])
 async def api_buckets(request):
     """List all buckets with metadata (no content for efficiency)."""
