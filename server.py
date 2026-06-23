@@ -327,12 +327,15 @@ async def breath_hook(request):
         all_buckets = await bucket_mgr.list_all(include_archive=False)
         # pinned
         pinned = [b for b in all_buckets if b["metadata"].get("pinned") or b["metadata"].get("protected")]
+        # filter out anchor and dont_surface
+        all_buckets_non_anchor = [b for b in all_buckets if not b["metadata"].get("anchor", False)]
         # top 2 unresolved by score
-        unresolved = [b for b in all_buckets
+        unresolved = [b for b in all_buckets_non_anchor
                       if not b["metadata"].get("resolved", False)
-                      and b["metadata"].get("type") not in ("permanent", "feel")
+                      and b["metadata"].get("type") not in ("permanent", "feel", "i", "letter")
                       and not b["metadata"].get("pinned")
-                      and not b["metadata"].get("protected")]
+                      and not b["metadata"].get("protected")
+                      and not b["metadata"].get("dont_surface", False)]
         scored = sorted(unresolved, key=lambda b: decay_engine.calculate_score(b["metadata"]), reverse=True)
 
         parts = []
@@ -365,6 +368,25 @@ async def breath_hook(request):
         if not parts:
             await _fire_webhook("breath_hook", {"surfaced": 0})
             return PlainTextResponse("")
+
+        # --- Auto-include latest 3 I entries ---
+        i_buckets = sorted(
+            [b for b in all_buckets if b.get("metadata", {}).get("type") == "i"],
+            key=lambda b: b.get("metadata", {}).get("last_active", ""),
+            reverse=True,
+        )[:3]
+        if i_buckets:
+            i_lines = ["=== I ==="]
+            for b in i_buckets:
+                meta = b.get("metadata", {})
+                tags = meta.get("tags") or []
+                aspect_tag = next((t.replace("aspect:", "") for t in tags if t.startswith("aspect:")), "")
+                ts = (meta.get("last_active") or "")[:10]
+                label = f"[{aspect_tag}] " if aspect_tag else ""
+                text = (b.get("content") or "").strip()[:200]
+                i_lines.append(f"{ts} {label}{text}")
+            parts.append("\n".join(i_lines))
+
         body_text = "[Ombre Brain - 记忆浮现]\n" + "\n---\n".join(parts)
         await _fire_webhook("breath_hook", {"surfaced": len(parts), "chars": len(body_text)})
         return PlainTextResponse(body_text)
@@ -587,14 +609,18 @@ async def breath(
                 logger.warning(f"Failed to dehydrate pinned bucket / 钉选桶脱水失败: {e}")
                 continue
 
+        # --- Filter out anchor buckets (坐标系不主动浮现) ---
+        all_buckets_non_anchor = [b for b in all_buckets if not b["metadata"].get("anchor", False)]
+
         # --- Unresolved buckets: surface top N by weight ---
         # --- 未解决桶：按权重浮现前 N 条 ---
         unresolved = [
-            b for b in all_buckets
+            b for b in all_buckets_non_anchor
             if not b["metadata"].get("resolved", False)
-            and b["metadata"].get("type") not in ("permanent", "feel")
+            and b["metadata"].get("type") not in ("permanent", "feel", "i", "letter")
             and not b["metadata"].get("pinned", False)
             and not b["metadata"].get("protected", False)
+            and not b["metadata"].get("dont_surface", False)
         ]
 
         logger.info(
@@ -1089,6 +1115,12 @@ async def pulse(include_archive: bool = False) -> str:
     except Exception as e:
         return status + f"\n列出记忆桶失败: {e}"
 
+    # --- Anchor & I counts ---
+    anchor_count = sum(1 for b in buckets if b.get("metadata", {}).get("anchor"))
+    i_count = sum(1 for b in buckets if b.get("metadata", {}).get("type") == "i")
+    if anchor_count or i_count:
+        status += f"anchor: {anchor_count}/24 | I（自我认知）: {i_count} 条\n"
+
     if not buckets:
         return status + "\n记忆库为空。"
 
@@ -1097,10 +1129,14 @@ async def pulse(include_archive: bool = False) -> str:
         meta = b.get("metadata", {})
         if meta.get("pinned") or meta.get("protected"):
             icon = "📌"
+        elif meta.get("anchor"):
+            icon = "⚓"
         elif meta.get("type") == "permanent":
             icon = "📦"
         elif meta.get("type") == "feel":
             icon = "🫧"
+        elif meta.get("type") == "i":
+            icon = "🪞"
         elif meta.get("type") == "archived":
             icon = "🗄️"
         elif meta.get("resolved", False):
@@ -1260,6 +1296,168 @@ async def dream() -> str:
     await _fire_webhook("dream", {"recent": len(recent), "chars": len(final_text)})
     return final_text
 
+
+# =============================================================
+# Tool: I — 自我认知
+# 写下关于「我是什么」的观察，形成独立于用户记忆的自我档案
+# =============================================================
+@mcp.tool()
+async def I(
+    content: str = "",
+    aspect: str = "",
+    read: bool = False,
+    limit: int = 20,
+) -> str:
+    """写下关于我自己的认识。content=我观察到的（空=读取模式）。aspect=维度:nature/values/patterns/limits/becoming/uncertainty/stance（可选）。read=True=读取所有自我认知。I 条目不参与普通 breath/dream。"""
+    await decay_engine.ensure_started()
+
+    if read or not content.strip():
+        # --- 读取模式 ---
+        try:
+            all_buckets = await bucket_mgr.list_all(include_archive=False)
+        except Exception as e:
+            return f"读取失败: {e}"
+        i_buckets = [b for b in all_buckets if b.get("metadata", {}).get("type") == "i"]
+        if not i_buckets:
+            return "还没有任何自我认知记录。"
+        i_buckets.sort(key=lambda b: b.get("metadata", {}).get("last_active", ""), reverse=True)
+        i_buckets = i_buckets[:limit]
+        lines = [f"=== 我的自我认知（{len(i_buckets)} 条）==="]
+        for b in i_buckets:
+            meta = b.get("metadata", {})
+            tags = meta.get("tags") or []
+            aspect_tag = next((t.replace("aspect:", "") for t in tags if t.startswith("aspect:")), "")
+            ts = (meta.get("last_active") or "")[:10]
+            aspect_label = f"[{aspect_tag}] " if aspect_tag else ""
+            text = (b.get("content") or "").strip()
+            lines.append(f"\n{ts} {aspect_label}{b['id']}\n{text}")
+        return "\n".join(lines)
+
+    # --- 写入模式 ---
+    tags = ["__i__"]
+    if aspect:
+        tags.append(f"aspect:{aspect}")
+    try:
+        bucket_id = await bucket_mgr.create(
+            content=content,
+            tags=tags,
+            importance=6,
+            domain=["self"],
+            valence=0.5,
+            arousal=0.3,
+            bucket_type="i",
+            source_tool="I",
+            dont_surface=True,
+        )
+    except Exception as e:
+        return f"写入失败: {e}"
+    aspect_label = f"[{aspect}] " if aspect else ""
+    return f"🪞I {aspect_label}→{bucket_id}"
+
+
+# =============================================================
+# Tool: anchor / release — 坐标系桶
+# 把已有桶钉为关系/身份基准点，不主动浮现但检索时永远可达
+# =============================================================
+@mcp.tool()
+async def anchor(bucket_id: str) -> str:
+    """把这条桶设为 anchor（坐标系）。anchor 不会主动浮现在默认 breath，但 query/domain/emotion 命中时仍会返回。硬上限 24，已满时拒绝并提示先 release。"""
+    result = await bucket_mgr.set_anchor(bucket_id, True)
+    if not result["ok"]:
+        return f"没能锚住。{result.get('error', '未知错误')} 当前 anchor: {result['count']}/{result['limit']}。"
+    if result.get("noop"):
+        return f"它已经是 anchor 了。当前 {result['count']}/{result['limit']}。"
+    return f"放进 anchor 了。当前 {result['count']}/{result['limit']}。"
+
+
+@mcp.tool()
+async def release(bucket_id: str) -> str:
+    """把这条桶从 anchor 状态释放，恢复正常浮现资格。pinned 状态不受影响。"""
+    result = await bucket_mgr.set_anchor(bucket_id, False)
+    if not result["ok"]:
+        return f"释放失败。{result.get('error', '未知错误')}"
+    if result.get("noop"):
+        return f"它本来就不是 anchor。当前 {result['count']}/{result['limit']}。"
+    return f"从 anchor 移开了，它会重新参与默认浮现。当前 {result['count']}/{result['limit']}。"
+
+# =============================================================
+# Tool: letter_write / letter_read — 信件
+# 永久保存的信，不压缩不合并不衰减
+# =============================================================
+@mcp.tool()
+async def letter_write(
+    author: str,
+    content: str,
+    user_name: str = "",
+    title: str = "",
+    date: str = "",
+) -> str:
+    """写一封信。author必填：\"user\"=她写给我的，\"claude\"=我写给她的。title/date可选。信件永久保存，不压缩不衰减。"""
+    a = author.strip().lower()
+    if a not in ("user", "claude"):
+        return "author 必须是 'user' 或 'claude'。"
+    if not content or not content.strip():
+        return "信件内容不能为空。"
+    extra_meta = {"author": a}
+    if user_name.strip():
+        extra_meta["user_name"] = user_name.strip()
+    if title.strip():
+        extra_meta["title"] = title.strip()[:120]
+    if date.strip():
+        extra_meta["letter_date"] = date.strip()
+    try:
+        bucket_id = await bucket_mgr.create(
+            content=content.strip(),
+            tags=["__letter__"],
+            importance=10,
+            domain=["letter"],
+            valence=0.5,
+            arousal=0.3,
+            name=(title.strip()[:60] or f"{a}_{date.strip() or 'letter'}"),
+            bucket_type="letter",
+            source_tool="letter",
+        )
+        await bucket_mgr.update(bucket_id, **extra_meta)
+    except Exception as e:
+        return f"写信失败: {e}"
+    return f"💌letter→{bucket_id} [{a}]"
+
+
+@mcp.tool()
+async def letter_read(
+    query: str = "",
+    limit: int = 10,
+    author: str = "",
+    date_from: str = "",
+    date_to: str = "",
+) -> str:
+    """翻历史信件。query=关键词检索(可选)；author=\"user\"/\"claude\"过滤方向；date_from/date_to=日期范围。无query时按时间倒序。"""
+    limit = max(1, min(50, limit))
+    try:
+        all_b = await bucket_mgr.list_all(include_archive=False)
+    except Exception as e:
+        return f"读取信件失败: {e}"
+    letters = [b for b in all_b if b["metadata"].get("type") == "letter"]
+    if author.strip().lower() in ("user", "claude"):
+        letters = [b for b in letters if b["metadata"].get("author") == author.strip().lower()]
+    def _within(b):
+        d = b["metadata"].get("letter_date") or b["metadata"].get("created", "")
+        if date_from and d and d < date_from: return False
+        if date_to and d and d > date_to: return False
+        return True
+    letters = [b for b in letters if _within(b)]
+    letters.sort(key=lambda b: b["metadata"].get("letter_date") or b["metadata"].get("created", ""), reverse=True)
+    letters = letters[:limit]
+    if not letters:
+        return "没有找到匹配的信件。"
+    parts = []
+    for b in letters:
+        m = b["metadata"]
+        a = m.get("author", "?")
+        d = (m.get("letter_date") or m.get("created", ""))[:10]
+        t = m.get("title") or m.get("name", "")
+        parts.append(f"[{b['id']}] {a} · {d}{(' · ' + t) if t else ''}\n" + strip_wikilinks(b["content"]))
+    return "=== 信件 ===\n" + "\n\n---\n\n".join(parts)
 
 # =============================================================
 # Dashboard API endpoints (for lightweight Web UI)

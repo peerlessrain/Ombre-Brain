@@ -58,6 +58,7 @@ class BucketManager:
         self.dynamic_dir = os.path.join(self.base_dir, "dynamic")
         self.archive_dir = os.path.join(self.base_dir, "archive")
         self.feel_dir = os.path.join(self.base_dir, "feel")
+        self.letter_dir = os.path.join(self.base_dir, "letters")
         self.fuzzy_threshold = config.get("matching", {}).get("fuzzy_threshold", 50)
         self.max_results = config.get("matching", {}).get("max_results", 5)
 
@@ -110,6 +111,10 @@ class BucketManager:
         name: str = None,
         pinned: bool = False,
         protected: bool = False,
+        source_tool: str = "",
+        why_remembered: str = "",
+        weight: float = None,
+        dont_surface: bool = False,
     ) -> str:
         """
         Create a new memory bucket, return bucket ID.
@@ -152,6 +157,14 @@ class BucketManager:
             metadata["pinned"] = True
         if protected:
             metadata["protected"] = True
+        if source_tool:
+            metadata["source_tool"] = source_tool
+        if why_remembered:
+            metadata["why_remembered"] = why_remembered
+        if weight is not None:
+            metadata["weight"] = weight
+        if dont_surface:
+            metadata["dont_surface"] = True
 
         # --- Assemble Markdown file (frontmatter + body) ---
         # --- 组装 Markdown 文件 ---
@@ -165,10 +178,18 @@ class BucketManager:
                 metadata["type"] = "permanent"
         elif bucket_type == "feel":
             type_dir = self.feel_dir
+        elif bucket_type == "i":
+            type_dir = self.dynamic_dir
+        elif bucket_type == "letter":
+            type_dir = self.letter_dir
         else:
             type_dir = self.dynamic_dir
         if bucket_type == "feel":
             primary_domain = "沉淀物"  # feel subfolder name
+        elif bucket_type == "i":
+            primary_domain = "self"  # I 桶存入 dynamic/self/
+        elif bucket_type == "letter":
+            primary_domain = "inbox"
         else:
             primary_domain = sanitize_name(domain[0]) if domain else "未分类"
         target_dir = os.path.join(type_dir, primary_domain)
@@ -282,7 +303,45 @@ class BucketManager:
             post["digested"] = bool(kwargs["digested"])
         if "model_valence" in kwargs:
             post["model_valence"] = max(0.0, min(1.0, float(kwargs["model_valence"])))
-
+        if "dont_surface" in kwargs:
+            if bool(kwargs["dont_surface"]):
+                post["dont_surface"] = True
+            else:
+                post.metadata.pop("dont_surface", None)
+        if "anchor" in kwargs:
+            target = bool(kwargs["anchor"])
+            if target:
+                already_anchor = bool(post.get("anchor", False))
+                if not already_anchor:
+                    current_count = sum(
+                        1 for b in (await self.list_all(include_archive=False))
+                        if b.get("metadata", {}).get("anchor")
+                    )
+                    if current_count >= 24:
+                        logger.warning(f"anchor 已满 24, bucket={kwargs.get('bucket_id', '?')}")
+                        return False
+                post["anchor"] = True
+            else:
+                post.metadata.pop("anchor", None)
+        if "source_tool" in kwargs:
+            if kwargs["source_tool"]:
+                post["source_tool"] = kwargs["source_tool"]
+            else:
+                post.metadata.pop("source_tool", None)
+        if "_pre_anchor_source_tool" in kwargs:
+            if kwargs["_pre_anchor_source_tool"]:
+                post["_pre_anchor_source_tool"] = kwargs["_pre_anchor_source_tool"]
+            else:
+                post.metadata.pop("_pre_anchor_source_tool", None)
+        if "author" in kwargs:
+            post["author"] = kwargs["author"]
+        if "user_name" in kwargs:
+            post["user_name"] = kwargs["user_name"]
+        if "title" in kwargs:
+            post["title"] = kwargs["title"]
+        if "letter_date" in kwargs:
+            post["letter_date"] = kwargs["letter_date"]
+            
         # --- Auto-refresh activation time / 自动刷新激活时间 ---
         post["last_active"] = now_iso()
 
@@ -627,7 +686,7 @@ class BucketManager:
         """
         buckets = []
 
-        dirs = [self.permanent_dir, self.dynamic_dir, self.feel_dir]
+        dirs = [self.permanent_dir, self.dynamic_dir, self.feel_dir, self.letter_dir]
         if include_archive:
             dirs.append(self.archive_dir)
 
@@ -741,7 +800,7 @@ class BucketManager:
         """
         if not bucket_id:
             return None
-        for dir_path in [self.permanent_dir, self.dynamic_dir, self.archive_dir, self.feel_dir]:
+        for dir_path in [self.permanent_dir, self.dynamic_dir, self.archive_dir, self.feel_dir, self.letter_dir]:
             if not os.path.exists(dir_path):
                 continue
             for root, _, files in os.walk(dir_path):
@@ -777,3 +836,61 @@ class BucketManager:
                 f"Failed to load bucket file / 加载桶文件失败: {file_path}: {e}"
             )
             return None
+
+    # ---------------------------------------------------------
+    # Anchor system — 坐标系桶
+    # iter 2.0: 把已有桶钉为关系/身份的基准点
+    # 不主动浮现，但关键词检索时永远可达。硬上限 24。
+    # ---------------------------------------------------------
+    ANCHOR_LIMIT = 24
+
+    async def count_anchors(self) -> int:
+        """Return current count of buckets with anchor=True."""
+        all_b = await self.list_all(include_archive=False)
+        return sum(1 for b in all_b if b.get("metadata", {}).get("anchor"))
+
+    async def set_anchor(self, bucket_id: str, value: bool) -> dict:
+        """
+        Toggle the anchor flag on a bucket. Hard-rejects if cap reached.
+        切换桶的 anchor 标记。设为 True 且当前已满 24 时拒绝。
+        """
+        bucket = await self.get(bucket_id)
+        if not bucket:
+            return {"ok": False, "error": "bucket not found", "count": 0, "limit": self.ANCHOR_LIMIT}
+
+        current_value = bool(bucket["metadata"].get("anchor", False))
+        target = bool(value)
+
+        # Idempotent: same state → noop
+        if current_value == target:
+            count = await self.count_anchors()
+            return {"ok": True, "anchor": target, "count": count, "limit": self.ANCHOR_LIMIT, "noop": True}
+
+        if target is True:
+            count = await self.count_anchors()
+            if count >= self.ANCHOR_LIMIT:
+                return {
+                    "ok": False,
+                    "error": f"anchor 已达上限 {self.ANCHOR_LIMIT}。请先 release 一条再 anchor 新的。",
+                    "count": count,
+                    "limit": self.ANCHOR_LIMIT,
+                }
+
+        # 钉为 anchor 时把 source_tool 改为 "anchor"，释放时恢复原始来源
+        update_kwargs: dict = {"anchor": target}
+        bucket_meta = bucket.get("metadata", {})
+        if target:
+            original = bucket_meta.get("source_tool", "")
+            update_kwargs["_pre_anchor_source_tool"] = original
+            update_kwargs["source_tool"] = "anchor"
+        else:
+            original = bucket_meta.get("_pre_anchor_source_tool", "")
+            update_kwargs["source_tool"] = original
+            update_kwargs["_pre_anchor_source_tool"] = None
+
+        ok = await self.update(bucket_id, **update_kwargs)
+        if not ok:
+            return {"ok": False, "error": "update failed", "count": 0, "limit": self.ANCHOR_LIMIT}
+
+        new_count = await self.count_anchors()
+        return {"ok": True, "anchor": target, "count": new_count, "limit": self.ANCHOR_LIMIT}

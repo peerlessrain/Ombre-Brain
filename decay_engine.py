@@ -195,9 +195,9 @@ class DecayEngine:
         for bucket in buckets:
             meta = bucket.get("metadata", {})
 
-            # Skip permanent / pinned / protected / feel buckets
-            # 跳过固化桶、钉选/保护桶和 feel 桶
-            if meta.get("type") in ("permanent", "feel") or meta.get("pinned") or meta.get("protected"):
+            # Skip permanent / pinned / protected / feel / i buckets
+            # 跳过固化桶、钉选/保护桶、feel 桶和自我认知桶
+            if meta.get("type") in ("permanent", "feel", "i", "letter") or meta.get("pinned") or meta.get("protected"):
                 continue
 
             checked += 1
