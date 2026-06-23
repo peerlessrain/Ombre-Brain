@@ -1519,6 +1519,12 @@ async def api_buckets(request):
                 "activation_count": meta.get("activation_count", 1),
                 "score": decay_engine.calculate_score(meta),
                 "content_preview": strip_wikilinks(b.get("content", ""))[:200],
+                "content": strip_wikilinks(b.get("content", "")) if meta.get("type") in ("letter", "i") else "",
+                "author": meta.get("author", ""),
+                "anchor": meta.get("anchor", False),
+                "letter_date": meta.get("letter_date", ""),
+                "title": meta.get("title", ""),
+                "dont_surface": meta.get("dont_surface", False),
             })
         result.sort(key=lambda x: x["score"], reverse=True)
         return JSONResponse(result)
@@ -1596,6 +1602,12 @@ async def api_search(request):
                 "valence": meta.get("valence", 0.5),
                 "arousal": meta.get("arousal", 0.3),
                 "content_preview": strip_wikilinks(b.get("content", ""))[:200],
+                "content": strip_wikilinks(b.get("content", "")) if meta.get("type") in ("letter", "i") else "",
+                "author": meta.get("author", ""),
+                "anchor": meta.get("anchor", False),
+                "letter_date": meta.get("letter_date", ""),
+                "title": meta.get("title", ""),
+                "dont_surface": meta.get("dont_surface", False),
             })
         return JSONResponse(result)
     except Exception as e:

@@ -598,6 +598,28 @@ body {
 [data-theme="dark"] .cal-day.lv3 { background:#5A4890; color:white; }
 [data-theme="dark"] .cal-day.lv4 { background:#7B68AE; color:white; }
 [data-theme="dark"] .cal-day.lv5 { background:#9B8EC4; color:white; }
+/* ═══ Letter Envelope ═══ */
+.letter-grid{display:flex;flex-wrap:wrap;gap:16px;padding:8px 0;}
+.letter-env{width:160px;height:116px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;cursor:pointer;position:relative;overflow:hidden;transition:transform .15s,box-shadow .15s;display:flex;flex-direction:column;justify-content:flex-end;padding:10px 12px;}
+.letter-env:hover{transform:translateY(-3px);box-shadow:0 6px 20px rgba(0,0,0,.08);}
+.letter-env::before{content:'';position:absolute;top:0;left:0;right:0;height:40px;background:linear-gradient(135deg,transparent 33%,var(--primary-glass) 33% 66%,transparent 66%);opacity:.5;}
+.letter-env-who{font-size:11px;color:var(--primary);margin-bottom:4px;}
+.letter-env-title{font-size:12px;color:var(--text);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.letter-env-date{font-size:10px;color:var(--text-muted);margin-top:auto;padding-top:4px;}
+.letter-modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.45);z-index:1000;justify-content:center;align-items:center;}
+.letter-modal-overlay.open{display:flex;}
+.letter-paper{background:#fffef8;color:#2c2c2c;max-width:520px;width:90%;max-height:80vh;border-radius:6px;padding:32px 36px;box-shadow:0 12px 40px rgba(0,0,0,.2);overflow-y:auto;position:relative;animation:letterOpen .25s ease-out;}
+@keyframes letterOpen{from{opacity:0;transform:scale(.92) translateY(20px)}to{opacity:1;transform:scale(1) translateY(0)}}
+.letter-paper-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid #e8e4da;}
+.letter-paper-who{font-size:13px;color:#8a7e6b;}
+.letter-paper-date{font-size:12px;color:#b0a794;}
+.letter-paper-title{font-size:16px;font-weight:600;color:#3a3630;margin-bottom:16px;}
+.letter-paper-body{font-size:15px;line-height:1.9;color:#3a3630;white-space:pre-wrap;font-family:'Noto Serif SC',Georgia,serif;}
+.letter-paper-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px;padding-top:14px;border-top:1px solid #e8e4da;}
+.letter-paper-actions span{font-size:12px;color:#8a7e6b;cursor:pointer;}
+.letter-paper-actions span:hover{color:#5a4e3b;}
+.letter-close{position:absolute;top:12px;right:16px;font-size:18px;color:#b0a794;cursor:pointer;background:none;border:none;}
+.letter-close:hover{color:#5a4e3b;}
 </style>
 </head>
 <body>
@@ -854,23 +876,37 @@ body {
 
 <!-- ═══ Letters Tab ═══ -->
 <div class="content-area" id="view-letters" style="display:none">
-  <div style="max-width:640px;margin:0 auto;">
+  <div style="max-width:960px;margin:0 auto;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-      <h3 style="margin:0;color:var(--text);">信件</h3>
+      <h3 style="margin:0;color:var(--text);">💌 信</h3>
       <button class="btn btn-pri" onclick="toggleLetterForm()">写信</button>
     </div>
-    <div id="letter-form" style="display:none;margin-bottom:20px;padding:16px;background:var(--bg-card);border-radius:12px;border:1px solid var(--border);">
-      <div style="margin-bottom:8px;display:flex;gap:8px;">
-        <select id="letter-author" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:13px;">
+    <div id="letter-form" style="display:none;margin-bottom:20px;padding:20px;background:var(--bg-card);border-radius:12px;border:1px solid var(--border);">
+      <div style="margin-bottom:10px;display:flex;gap:8px;">
+        <select id="letter-author" style="padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:14px;">
           <option value="user">我写给小克</option>
           <option value="claude">小克写给我</option>
         </select>
-        <input id="letter-title" placeholder="标题（可选）" style="flex:1;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:13px;">
+        <input id="letter-title" placeholder="标题（可选）" style="flex:1;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:14px;">
       </div>
-      <textarea id="letter-content" rows="6" placeholder="写下你想说的话…" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;resize:vertical;box-sizing:border-box;"></textarea>
-      <button class="btn btn-pri" onclick="sendLetter()" style="margin-top:8px;">寄出</button>
+      <textarea id="letter-content" rows="8" placeholder="写下你想说的话…" style="width:100%;padding:12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;line-height:1.8;resize:vertical;box-sizing:border-box;"></textarea>
+      <button class="btn btn-pri" id="btn-send-letter" onclick="sendLetter()" style="margin-top:10px;">寄出</button>
     </div>
-    <div id="letter-list" style="color:var(--text-secondary);font-size:13px;">加载中…</div>
+    <div id="letter-list"><div class="letter-grid"></div></div>
+  </div>
+</div>
+<div class="letter-modal-overlay" id="letter-overlay" onclick="if(event.target===this)closeLetterModal()">
+  <div class="letter-paper">
+    <button class="letter-close" onclick="closeLetterModal()">✕</button>
+    <div class="letter-paper-head">
+      <span class="letter-paper-who" id="lm-who"></span>
+      <span class="letter-paper-date" id="lm-date"></span>
+    </div>
+    <div class="letter-paper-title" id="lm-title"></div>
+    <div class="letter-paper-body" id="lm-body"></div>
+    <div class="letter-paper-actions">
+      <span id="lm-delete">删除</span>
+    </div>
   </div>
 </div>
 
@@ -1896,38 +1932,57 @@ function toggleTheme(){
 
 checkAuth().then(()=>init());
 /* ═══ Letters Tab ═══ */
+let _letterCache=[];
 function toggleLetterForm(){const f=document.getElementById('letter-form');f.style.display=f.style.display==='none'?'block':'none';}
 async function sendLetter(){
   const a=document.getElementById('letter-author').value;
   const c=document.getElementById('letter-content').value.trim();
   const t=document.getElementById('letter-title').value.trim();
   if(!c){toast('内容不能为空','warn');return;}
+  const btn=document.getElementById('btn-send-letter');btn.disabled=true;btn.textContent='寄出中…';
   try{
     const r=await fetch('/api/letter_write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({author:a,content:c,title:t})});
+    btn.disabled=false;btn.textContent='寄出';
     if(r.ok){toast('信已寄出 💌');document.getElementById('letter-content').value='';document.getElementById('letter-title').value='';document.getElementById('letter-form').style.display='none';loadLetters();}
     else toast('寄信失败','warn');
-  }catch(e){toast('网络错误','warn');}
+  }catch(e){toast('网络错误','warn');btn.disabled=false;btn.textContent='寄出';}
 }
 async function loadLetters(){
-  const el=document.getElementById('letter-list');
+  const grid=document.querySelector('#letter-list .letter-grid');
   try{
     const r=await fetch('/api/buckets');const d=await r.json();
-    const letters=d.filter(b=>b.type==='letter').sort((a,b)=>(b.letter_date||b.created||'').localeCompare(a.letter_date||a.created||''));
-    if(!letters.length){el.innerHTML='<div style="text-align:center;padding:40px;color:var(--text-muted);">还没有信件。写一封吧。</div>';return;}
-    el.innerHTML=letters.map(b=>{
+    _letterCache=d.filter(b=>b.type==='letter').sort((a,b)=>(b.letter_date||b.created||'').localeCompare(a.letter_date||a.created||''));
+    if(!_letterCache.length){grid.innerHTML='<div style="text-align:center;padding:40px;color:var(--text-muted);width:100%;">还没有信件。写一封吧。</div>';return;}
+    grid.innerHTML=_letterCache.map((b,i)=>{
       const who=b.author==='user'?'阿瑜→小克':'小克→阿瑜';
       const d=(b.letter_date||b.created||'').slice(0,10);
-      const t=b.title||b.name||'';
-      return `<div style="padding:14px;margin-bottom:10px;background:var(--bg-card);border-radius:10px;border:1px solid var(--border);cursor:pointer;" onclick="openModal('${b.id}')">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-          <span style="font-size:12px;color:var(--primary);">${who}</span>
-          <span style="font-size:11px;color:var(--text-muted);">${d}</span>
-        </div>
-        ${t?`<div style="font-size:14px;color:var(--text);font-weight:500;margin-bottom:4px;">${t}</div>`:''}
-        <div style="font-size:13px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${(b.content||'').slice(0,80)}</div>
+      const t=b.title||'';
+      return `<div class="letter-env" onclick="openLetterModal(${i})">
+        <div class="letter-env-date">${d}</div>
+        <div class="letter-env-who">${who}</div>
+        ${t?`<div class="letter-env-title">${t}</div>`:`<div class="letter-env-title" style="color:var(--text-muted);font-style:italic;">${(b.content_preview||b.content||'').slice(0,20)}…</div>`}
       </div>`;
     }).join('');
-  }catch(e){el.innerHTML='加载失败';}
+  }catch(e){grid.innerHTML='<div style="color:var(--text-muted);">加载失败</div>';}
+}
+function openLetterModal(idx){
+  const b=_letterCache[idx];if(!b)return;
+  const who=b.author==='user'?'阿瑜 → 小克':'小克 → 阿瑜';
+  document.getElementById('lm-who').textContent=who;
+  document.getElementById('lm-date').textContent=(b.letter_date||b.created||'').slice(0,10);
+  document.getElementById('lm-title').textContent=b.title||'';
+  document.getElementById('lm-title').style.display=b.title?'':'none';
+  document.getElementById('lm-body').textContent=b.content||b.content_preview||'';
+  document.getElementById('lm-delete').onclick=()=>{deleteLetter(b.id);};
+  document.getElementById('letter-overlay').classList.add('open');
+}
+function closeLetterModal(){document.getElementById('letter-overlay').classList.remove('open');}
+async function deleteLetter(id){
+  if(!confirm('确定删除这封信？'))return;
+  try{
+    const r=await fetch('/api/bucket/'+id,{method:'DELETE'});
+    if(r.ok){toast('已删除');closeLetterModal();loadLetters();}else toast('删除失败','warn');
+  }catch(e){toast('网络错误','warn');}
 }
 
 /* ═══ Anchors Tab ═══ */
