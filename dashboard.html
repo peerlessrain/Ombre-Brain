@@ -739,15 +739,21 @@ body {
 [data-theme="dark"] .cal-day.lv5 { background:#9B8EC4; color:white; }
 /* ═══ Letter Envelope ═══ */
 .letter-grid{display:flex;flex-wrap:wrap;gap:16px;padding:8px 0;}
-.letter-env{width:160px;height:116px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;cursor:pointer;position:relative;overflow:hidden;transition:transform .15s,box-shadow .15s;display:flex;flex-direction:column;justify-content:flex-end;padding:10px 12px;}
-.letter-env:hover{transform:translateY(-3px);box-shadow:0 6px 20px rgba(0,0,0,.08);}
-.letter-env::before{content:'';position:absolute;top:0;left:0;right:0;height:40px;background:linear-gradient(135deg,transparent 33%,var(--primary-glass) 33% 66%,transparent 66%);opacity:.5;}
-.letter-env-who{font-size:11px;color:var(--primary);margin-bottom:4px;}
+.letter-env{width:170px;height:124px;background:rgba(255,255,255,0.7);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid var(--border-soft);border-radius:12px;cursor:pointer;position:relative;overflow:hidden;transition:all .2s cubic-bezier(0.4,0,0.2,1);display:flex;flex-direction:column;justify-content:flex-end;padding:12px 14px;}
+.letter-env:hover{transform:translateY(-3px) rotate(-0.5deg);box-shadow:0 8px 24px rgba(62,48,96,.1);border-color:var(--primary-soft);}
+.letter-env::before{content:'';position:absolute;top:0;left:0;right:0;height:44px;background:linear-gradient(135deg,transparent 33%,var(--primary-glass) 33% 66%,transparent 66%);opacity:.5;}
+.letter-env.from-claude{border-left:3px solid #5B8A9A;}
+.letter-env.from-claude::before{background:linear-gradient(135deg,transparent 33%,rgba(91,138,154,0.08) 33% 66%,transparent 66%);}
+.letter-env.from-user{border-left:3px solid var(--accent);}
+.letter-env.from-user::before{background:linear-gradient(135deg,transparent 33%,rgba(212,168,224,0.08) 33% 66%,transparent 66%);}
+.letter-env-who{font-size:11px;margin-bottom:4px;font-weight:500;}
+.letter-env.from-claude .letter-env-who{color:#5B8A9A;}
+.letter-env.from-user .letter-env-who{color:var(--accent);}
 .letter-env-title{font-size:12px;color:var(--text);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .letter-env-date{font-size:10px;color:var(--text-muted);margin-top:auto;padding-top:4px;}
-.letter-modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.45);z-index:1000;justify-content:center;align-items:center;}
+.letter-modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.4);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:1000;justify-content:center;align-items:center;}
 .letter-modal-overlay.open{display:flex;}
-.letter-paper{background:#fffef8;color:#2c2c2c;max-width:520px;width:90%;max-height:80vh;border-radius:6px;padding:32px 36px;box-shadow:0 12px 40px rgba(0,0,0,.2);overflow-y:auto;position:relative;animation:letterOpen .25s ease-out;}
+.letter-paper{background:#fffef8;color:#2c2c2c;max-width:520px;width:90%;max-height:80vh;border-radius:8px;padding:32px 36px;box-shadow:0 12px 40px rgba(0,0,0,.2);overflow-y:auto;position:relative;animation:letterOpen .25s ease-out;}
 @keyframes letterOpen{from{opacity:0;transform:scale(.92) translateY(20px)}to{opacity:1;transform:scale(1) translateY(0)}}
 .letter-paper-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid #e8e4da;}
 .letter-paper-who{font-size:13px;color:#8a7e6b;}
@@ -1050,9 +1056,14 @@ body {
 
 <!-- ═══ Anchors Tab ═══ -->
 <div class="content-area" id="view-anchors" style="display:none">
-  <div style="max-width:640px;margin:0 auto;">
-    <h3 style="margin:0 0 8px;color:var(--text);">锚点 <span id="anchor-count" style="font-size:13px;color:var(--text-muted);"></span></h3>
-    <p style="font-size:12px;color:var(--text-muted);margin:0 0 16px;">不主动浮现，但关键词命中时永远在那里。上限 24。</p >
+  <div style="max-width:900px;margin:0 auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <div>
+        <h3 style="margin:0;color:var(--text);font-family:var(--font-display);font-size:20px;">⚓ 锚点</h3>
+        <p style="font-size:12px;color:var(--text-muted);margin:4px 0 0;">不主动浮现，但关键词命中时永远在那里。</p >
+      </div>
+      <span id="anchor-count" style="font-size:13px;color:var(--text-muted);background:var(--primary-glass);padding:4px 14px;border-radius:14px;font-weight:600;"></span>
+    </div>
     <div id="anchor-list" style="color:var(--text-secondary);font-size:13px;">加载中…</div>
   </div>
 </div>
@@ -2113,7 +2124,8 @@ async function loadLetters(){
       const who=b.author==='user'?'阿瑜→小克':'小克→阿瑜';
       const d=(b.letter_date||b.created||'').slice(0,10);
       const t=b.title||'';
-      return `<div class="letter-env" onclick="openLetterModal(${i})">
+      const cls=b.author==='user'?'from-user':'from-claude';
+      return `<div class="letter-env ${cls}" onclick="openLetterModal(${i})">
         <div class="letter-env-date">${d}</div>
         <div class="letter-env-who">${who}</div>
         ${t?`<div class="letter-env-title">${t}</div>`:`<div class="letter-env-title" style="color:var(--text-muted);font-style:italic;">${(b.content_preview||b.content||'').slice(0,20)}…</div>`}
@@ -2147,19 +2159,36 @@ async function loadAnchors(){
   try{
     const r=await fetch('/api/buckets');const d=await r.json();
     const anchors=d.filter(b=>b.anchor);
-    document.getElementById('anchor-count').textContent=`${anchors.length}/24`;
-    if(!anchors.length){el.innerHTML='<div style="text-align:center;padding:40px;color:var(--text-muted);">还没有锚点。</div>';return;}
-    el.innerHTML=anchors.map(b=>{
-      const name=b.name||b.id;
-      const domains=(b.domain||[]).join(',');
-      return `<div style="padding:12px;margin-bottom:8px;background:var(--bg-card);border-radius:10px;border:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
-        <div>
-          <div style="font-size:13px;color:var(--text);font-weight:500;">⚓ ${name}</div>
-          <div style="font-size:11px;color:var(--text-muted);">${domains||'未分类'}</div>
-        </div>
-        <span style="font-size:11px;color:var(--text-muted);cursor:pointer;" onclick="openModal('${b.id}')">详情</span>
-      </div>`;
-    }).join('');
+    document.getElementById('anchor-count').textContent=`${anchors.length} / 24`;
+    if(!anchors.length){
+      el.innerHTML=`<div style="text-align:center;padding:60px 20px;">
+        <div style="font-size:48px;opacity:.3;margin-bottom:12px;">⚓</div>
+        <div style="color:var(--text-muted);font-size:14px;line-height:1.8;">
+          还没有锚点。<br>锚点是坐标系——定义「我们是谁」的底层存在。
+        </div></div>`;
+      return;
+    }
+    el.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;">
+      ${anchors.map(b=>{
+        const name=b.name||b.id;
+        const domains=(b.domain||[]).filter(Boolean);
+        const preview=(b.content_preview||b.content||'').slice(0,80);
+        const imp=b.importance||5;
+        const domH=domains.slice(0,2).map(d=>`<span style="font-size:10px;padding:2px 8px;border-radius:6px;background:var(--primary-glass);color:var(--primary-deep);font-weight:500;">${d}</span>`).join(' ');
+        return `<div style="background:rgba(255,255,255,0.7);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-radius:var(--radius-md);padding:16px 18px;border:1px solid var(--border-soft);cursor:pointer;transition:all 0.25s cubic-bezier(0.4,0,0.2,1);position:relative;overflow:hidden;" onmouseover="this.style.borderColor='var(--primary-soft)';this.style.boxShadow='0 4px 20px rgba(155,142,196,0.15)';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='var(--border-soft)';this.style.boxShadow='none';this.style.transform=''" onclick="openModal('${b.id}')">
+          <div style="position:absolute;top:0;left:0;bottom:0;width:3px;background:linear-gradient(180deg,var(--primary),var(--accent));border-radius:3px 0 0 3px;"></div>
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px;">
+            <div style="font-size:14px;font-weight:600;color:var(--text);line-height:1.4;">${name}</div>
+            <span style="font-size:14px;flex-shrink:0;opacity:.4;">⚓</span>
+          </div>
+          ${preview?`<div style="font-size:12px;color:var(--text-secondary);line-height:1.5;margin-bottom:8px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${preview}</div>`:''}
+          <div style="display:flex;gap:4px;align-items:center;">
+            ${domH}
+            <span style="margin-left:auto;font-size:11px;color:var(--text-muted);">imp:${imp}</span>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
   }catch(e){el.innerHTML='加载失败';}
 }
 
