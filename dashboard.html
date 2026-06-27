@@ -1563,17 +1563,17 @@ document.getElementById('btn-save').onclick=async()=>{
     domain:document.getElementById('e-domain').value.split(/[,，]/).map(s=>s.trim()).filter(Boolean)};
   try{
     const r=await authFetch('/api/bucket/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(up)});
-    if(r&&r.ok){showToast('已保存 ✓');closeModal();await reload();}
-    else showToast('保存失败，后端可能不支持此操作');
-  }catch{showToast('保存失败');}
+    if(r&&r.ok){toast('已保存 ✓');closeModal();await reload();}
+    else toast('保存失败，后端可能不支持此操作');
+  }catch{toast('保存失败');}
 };
 document.getElementById('btn-delete').onclick=async()=>{
   if(!currentBucket||!confirm('确定删除？不可恢复。'))return;
   try{
     const r=await authFetch('/api/bucket/'+bId(currentBucket),{method:'DELETE'});
-    if(r&&r.ok){showToast('已删除');closeModal();await reload();}
-    else showToast('删除失败');
-  }catch{showToast('删除失败');}
+    if(r&&r.ok){toast('已删除');closeModal();await reload();}
+    else toast('删除失败');
+  }catch{toast('删除失败');}
 };
 
 /* ═══════════════════════════════════════
@@ -2154,14 +2154,21 @@ async function sendLetter(){
   const a=document.getElementById('letter-author').value;
   const c=document.getElementById('letter-content').value.trim();
   const t=document.getElementById('letter-title').value.trim();
-  if(!c){toast('内容不能为空','warn');return;}
+  if(!c){toast('内容不能为空');return;}
   const btn=document.getElementById('btn-send-letter');btn.disabled=true;btn.textContent='寄出中…';
   try{
-    const r=await fetch('/api/letter_write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({author:a,content:c,title:t})});
+    await fetch('/api/letter_write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({author:a,content:c,title:t})});
     btn.disabled=false;btn.textContent='寄出';
-    if(r.ok){toast('信已寄出 💌');document.getElementById('letter-content').value='';document.getElementById('letter-title').value='';document.getElementById('letter-form').style.display='none';loadLetters();}
-    else toast('寄信失败','warn');
-  }catch(e){toast('网络错误','warn');btn.disabled=false;btn.textContent='寄出';}
+    document.getElementById('letter-content').value='';
+    document.getElementById('letter-title').value='';
+    document.getElementById('letter-form').style.display='none';
+    toast('信已寄出 💌');
+    await loadLetters();
+  }catch(e){
+    btn.disabled=false;btn.textContent='寄出';
+    toast('发送可能失败，请刷新检查');
+    loadLetters();
+  }
 }
 async function loadLetters(){
   const grid=document.querySelector('#letter-list .letter-grid');
