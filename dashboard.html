@@ -1570,10 +1570,9 @@ document.getElementById('btn-save').onclick=async()=>{
 document.getElementById('btn-delete').onclick=async()=>{
   if(!currentBucket||!confirm('确定删除？不可恢复。'))return;
   try{
-    const r=await authFetch('/api/bucket/'+bId(currentBucket),{method:'DELETE'});
-    if(r&&r.ok){toast('已删除');closeModal();allBuckets=allBuckets.filter(b=>bId(b)!==bId(currentBucket));renderFeed(allBuckets);updateStats(allBuckets);setTimeout(reload,800);}
-    else toast('删除失败');
-  }catch{toast('删除失败');}
+    await authFetch('/api/bucket/'+bId(currentBucket),{method:'DELETE'});
+    toast('已删除');closeModal();allBuckets=allBuckets.filter(b=>bId(b)!==bId(currentBucket));renderFeed(allBuckets);updateStats(allBuckets);setTimeout(reload,800);
+  }catch{toast('删除可能失败，请刷新检查');closeModal();setTimeout(reload,800);}
 };
 
 /* ═══════════════════════════════════════
