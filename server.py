@@ -181,7 +181,33 @@ def _create_session() -> str:
     return token
 
 
+def _is_internal_api_authenticated(request) -> bool:
+    """Allow trusted server-to-server calls with OMBRE_INTERNAL_API_TOKEN.
+
+    This is intended for Cove/Skin backend only. Dashboard users still use
+    the normal ombre_session cookie. If the env var is empty, the internal
+    channel is disabled.
+    """
+    expected = os.environ.get("OMBRE_INTERNAL_API_TOKEN", "").strip()
+    if not expected:
+        return False
+
+    auth = request.headers.get("authorization", "").strip()
+    token = ""
+    if auth.lower().startswith("bearer "):
+        token = auth.split(" ", 1)[1].strip()
+
+    # Optional header fallback, useful when a proxy strips Authorization.
+    if not token:
+        token = request.headers.get("x-ombre-internal-token", "").strip()
+
+    return bool(token) and hmac.compare_digest(token, expected)
+
+
 def _is_authenticated(request) -> bool:
+    if _is_internal_api_authenticated(request):
+        return True
+
     token = request.cookies.get("ombre_session")
     if not token:
         return False
