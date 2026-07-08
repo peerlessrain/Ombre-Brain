@@ -1220,14 +1220,13 @@ body {
         <div class="edit-field"><label class="edit-lbl">领域（逗号分隔）</label><input class="edit-inp" id="e-domain" type="text"></div>
         <div class="edit-section">
           <div class="modal-label">编辑标记</div>
-          <div class="edit-help">多维标记只改 metadata，不修改记忆正文。</div>
+          <div class="edit-help">用中文调整这条记忆属于谁、是什么内容、谁能看见。这里只改标记，不修改记忆正文。</div>
           <div class="edit-grid">
-            <div class="edit-field"><label class="edit-lbl">agent_id</label><select class="edit-select" id="e-agent"><option value="">（早期记忆）</option><option value="claude">小克</option><option value="g">小G</option><option value="glm">GLM</option><option value="ayu">阿瑜</option><option value="system">system</option></select></div>
-            <div class="edit-field"><label class="edit-lbl">relationship_line</label><select class="edit-select" id="e-line"><option value="">（早期记忆）</option><option value="claude_line">小克</option><option value="g_line">小G</option><option value="glm_interim">GLM</option><option value="shared">公共</option><option value="project">项目</option></select></div>
-            <div class="edit-field"><label class="edit-lbl">scope</label><select class="edit-select" id="e-scope"><option value="">（未标记）</option><option value="agent_private">私有</option><option value="shared_about_ayu">阿瑜档案</option><option value="project">项目</option></select></div>
-            <div class="edit-field"><label class="edit-lbl">visibility</label><select class="edit-select" id="e-visibility"><option value="">（未标记）</option><option value="same_agent">same_agent</option><option value="same_line">same_line</option><option value="shared">shared</option><option value="manual_only">manual_only</option><option value="archived">archived</option></select></div>
+            <div class="edit-field"><label class="edit-lbl">来源脑区</label><select class="edit-select" id="e-owner"><option value="k">小克</option><option value="g">小G</option><option value="m">GLM</option><option value="a">阿瑜</option><option value="sys">项目/系统</option></select></div>
+            <div class="edit-field"><label class="edit-lbl">内容分类</label><select class="edit-select" id="e-scope"><option value="personal">个人记忆</option><option value="ayu">阿瑜档案</option><option value="project">项目</option></select></div>
+            <div class="edit-field"><label class="edit-lbl">可见范围</label><select class="edit-select" id="e-visibility"><option value="line">同关系可见</option><option value="self">仅本人可见</option><option value="public">公共可见</option><option value="manual">手动可见</option><option value="archive">已归档</option></select></div>
           </div>
-          <div class="edit-field"><label class="edit-lbl">notes</label><textarea class="edit-txt" id="e-notes" style="min-height:54px"></textarea></div>
+          <div class="edit-field"><label class="edit-lbl">备注</label><textarea class="edit-txt" id="e-notes" placeholder="可选。记录为什么这样标记，不会改变记忆正文。" style="min-height:54px"></textarea></div>
           <button class="btn btn-sec" id="btn-save-owner" type="button">保存标记</button>
         </div>
 </div>
@@ -1351,6 +1350,47 @@ const OWNER_TEXT={
   interim:'临时',
   early:'早期记忆'
 };
+function ownerChoiceFromMeta(meta){
+  const m=meta||{};
+  const agent=(m.agent_id||'').toLowerCase();
+  const line=(m.relationship_line||'').toLowerCase();
+  if(line==='g_line'||agent==='g')return'g';
+  if(line==='glm_interim'||agent==='glm')return'm';
+  if((line==='shared'&&agent==='ayu')||agent==='ayu')return'a';
+  if(line==='project'||agent==='system')return'sys';
+  return'k';
+}
+function ownerMetaFromChoice(choice){
+  const map={
+    k:{agent_id:'claude',relationship_line:'claude_line'},
+    g:{agent_id:'g',relationship_line:'g_line'},
+    m:{agent_id:'glm',relationship_line:'glm_interim'},
+    a:{agent_id:'ayu',relationship_line:'shared'},
+    sys:{agent_id:'system',relationship_line:'project'}
+  };
+  return map[choice]||map.k;
+}
+function scopeChoiceFromMeta(scope){
+  if(scope==='shared_about_ayu')return'ayu';
+  if(scope==='project')return'project';
+  return'personal';
+}
+function scopeMetaFromChoice(choice){
+  const map={personal:'agent_private',ayu:'shared_about_ayu',project:'project'};
+  return map[choice]||map.personal;
+}
+function visibilityChoiceFromMeta(visibility){
+  const map={same_line:'line',same_agent:'self',shared:'public',manual_only:'manual',archived:'archive'};
+  return map[visibility]||'';
+}
+function visibilityMetaFromChoice(choice){
+  const map={line:'same_line',self:'same_agent',public:'shared',manual:'manual_only',archive:'archived'};
+  return map[choice]||map.line;
+}
+function suggestedVisibilityForScopeChoice(scopeChoice){
+  if(scopeChoice==='ayu')return'public';
+  return'line';
+}
 function ownerFacts(b){
   const m=bMeta(b);
   const agent=(m.agent_id||'').toLowerCase();
@@ -1377,7 +1417,7 @@ function ownerInfo(b){
   }
   if(f.g)return{key:'g',label:OWNER_TEXT.g+' \u00b7 '+OWNER_TEXT.private,cls:'g'};
   if(f.glm)return{key:'glm',label:'GLM \u00b7 '+OWNER_TEXT.interim,cls:'glm'};
-  if(f.claude)return{key:'claude',label:OWNER_TEXT.claude+(f.empty?'':' \u00b7 '+OWNER_TEXT.private),cls:'claude'};
+  if(f.claude)return{key:'claude',label:OWNER_TEXT.claude+' \u00b7 '+(f.empty?OWNER_TEXT.early:OWNER_TEXT.private),cls:'claude'};
   if(f.ayu)return{key:'shared',label:OWNER_TEXT.shared,cls:'shared'};
   return{key:'unknown',label:'Unknown',cls:'unknown'};
 }
@@ -1685,16 +1725,20 @@ async function openDetail(id){
   document.getElementById('e-content').value=content;
   document.getElementById('e-tags').value=tags.join(', ');
   document.getElementById('e-domain').value=domains.filter(Boolean).join(', ');
-  document.getElementById('e-agent').value=meta.agent_id||'';
-  document.getElementById('e-line').value=meta.relationship_line||'';
-  document.getElementById('e-scope').value=meta.scope||'';
-  document.getElementById('e-visibility').value=meta.visibility||'';
+  document.getElementById('e-owner').value=ownerChoiceFromMeta(meta);
+  const scopeChoice=scopeChoiceFromMeta(meta.scope||'agent_private');
+  document.getElementById('e-scope').value=scopeChoice;
+  document.getElementById('e-visibility').value=visibilityChoiceFromMeta(meta.visibility)||suggestedVisibilityForScopeChoice(scopeChoice);
   document.getElementById('e-notes').value=meta.notes||'';
   document.getElementById('modal-overlay').classList.add('open');
   document.body.style.overflow='hidden';
 }
 function closeModal(){document.getElementById('modal-overlay').classList.remove('open');document.body.style.overflow='';currentBucket=null;}
 document.getElementById('modal-overlay').onclick=e=>{if(e.target===e.currentTarget)closeModal();};
+document.getElementById('e-scope').onchange=e=>{
+  const visibility=document.getElementById('e-visibility');
+  if(visibility)visibility.value=suggestedVisibilityForScopeChoice(e.target.value);
+};
 document.getElementById('btn-save').onclick=async()=>{
   if(!currentBucket)return;
   const id=bId(currentBucket);
@@ -1709,13 +1753,15 @@ document.getElementById('btn-save').onclick=async()=>{
 };
 document.getElementById('btn-save-owner').onclick=async()=>{
   if(!currentBucket)return;
-  if(!confirm('这会改变该记忆对不同 agent 的可见范围。'))return;
+  if(!confirm('这会改变这条记忆的分类和可见范围，确认保存吗？'))return;
   const id=bId(currentBucket);
+  const ownerMeta=ownerMetaFromChoice(document.getElementById('e-owner').value);
+  const scopeValue=scopeMetaFromChoice(document.getElementById('e-scope').value);
+  const visibilityValue=visibilityMetaFromChoice(document.getElementById('e-visibility').value);
   const up={
-    agent_id:document.getElementById('e-agent').value,
-    relationship_line:document.getElementById('e-line').value,
-    scope:document.getElementById('e-scope').value,
-    visibility:document.getElementById('e-visibility').value,
+    ...ownerMeta,
+    scope:scopeValue,
+    visibility:visibilityValue,
     notes:document.getElementById('e-notes').value.trim()
   };
   try{
