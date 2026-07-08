@@ -1326,7 +1326,8 @@ function ownerInfo(b){
   const scope=(m.scope||'').toLowerCase();
   const visibility=(m.visibility||'').toLowerCase();
   const empty=!agent&&!line&&!scope&&!visibility;
-  if(scope==='shared_about_ayu'||line==='shared'||visibility==='shared')return{key:'shared',label:'共享阿瑜',cls:'shared'};
+  if(scope==='shared_about_ayu')return{key:'shared',label:'阿瑜档案',cls:'shared'};
+  if(line==='shared'||visibility==='shared')return{key:'shared',label:'公共',cls:'shared'};
   if(scope==='project'||line==='project')return{key:'project',label:'项目',cls:'project'};
   if(line==='g_line'||agent==='g')return{key:'g',label:'小G线',cls:'g'};
   if(line==='glm_interim'||agent==='glm')return{key:'glm',label:'GLM临时',cls:'glm'};
