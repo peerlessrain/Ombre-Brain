@@ -1710,21 +1710,23 @@ async def api_letter_write(request):
     try:
         body = await request.json()
         a = body.get("author", "").strip().lower()
-        if a not in ("user", "claude"):
-            return JSONResponse({"error": "author must be user or claude"}, status_code=400)
+        if a not in ("user", "claude", "g"):
+            return JSONResponse({"error": "author must be user, claude or g"}, status_code=400)
         c = body.get("content", "").strip()
         if not c:
             return JSONResponse({"error": "content is empty"}, status_code=400)
         t = body.get("title", "").strip()
-        ctx = _owner_context()
+        ctx = _owner_context(body.get("agent_id", ""), body.get("relationship_line", ""))
+        from_agent = (body.get("from_agent") or ("ayu" if a == "user" else ctx["agent_id"])).strip()
+        to_agent = (body.get("to_agent") or (ctx["agent_id"] if a == "user" else "ayu")).strip()
         owner = _ownership_for_create(
             "letter",
             agent_id=ctx["agent_id"],
             relationship_line=ctx["relationship_line"],
             scope="agent_private",
             visibility="same_line",
-            from_agent=("ayu" if a == "user" else ctx["agent_id"]),
-            to_agent=(ctx["agent_id"] if a == "user" else "ayu"),
+            from_agent=from_agent,
+            to_agent=to_agent,
         )
         bucket_id = await bucket_mgr.create(
             content=c, tags=["__letter__"], importance=10,
@@ -2079,7 +2081,7 @@ async def api_config_update(request):
             dehy["api_key"] = d["api_key"]
             updated.append("dehydration.api_key")
         # Hot-reload dehydrator
-        dehydrator.model = dehy.get("model", "deepseek-chat")
+        dehydrator.model = dehy.get("model", "gemini-2.5-flash-lite")
         dehydrator.base_url = dehy.get("base_url", "")
         dehydrator.api_key = dehy.get("api_key", "")
         if hasattr(dehydrator, "client") and dehydrator.api_key:

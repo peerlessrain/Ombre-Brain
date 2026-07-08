@@ -121,7 +121,9 @@ body {
 .search-wrap::before {
   content:'🔍'; position:absolute; left:12px; top:50%; transform:translateY(-50%);
   font-size:13px; pointer-events:none;
+  color:var(--text-secondary); opacity:.95; transition:var(--transition);
 }
+.search-wrap:focus-within::before, .search-wrap:hover::before { color:var(--primary-deep); opacity:1; }
 .logout-btn {
   background:none; border:1px solid var(--border); color:var(--text-muted);
   border-radius:16px; padding:5px 14px; font-size:12px; cursor:pointer;
@@ -791,6 +793,8 @@ body {
 [data-theme="dark"] .anchor-card { background:rgba(42,38,64,0.75); }
 [data-theme="dark"] .config-section { background:rgba(42,38,64,0.7); }
 [data-theme="dark"] .filter-pill { background:rgba(42,38,64,0.7); }
+[data-theme="dark"] .search-wrap::before { color:#D8D4E8; opacity:1; }
+[data-theme="dark"] .search-wrap:focus-within::before, [data-theme="dark"] .search-wrap:hover::before { color:#FFFFFF; }
 [data-theme="dark"] .cal-day.lv0 { background:var(--bg); }
 [data-theme="dark"] .cal-day.lv1 { background:#3A3060; color:#C8BBEA; }
 [data-theme="dark"] .cal-day.lv2 { background:#4A3878; color:#D8D0F0; }
@@ -919,11 +923,11 @@ body {
       </div>
       <div class="filter-pills owner-filter-pills" id="owner-filter-pills">
         <div class="filter-pill active" data-owner="all">全部脑区</div>
-        <div class="filter-pill" data-owner="claude">小克线</div>
-        <div class="filter-pill" data-owner="g">小G线</div>
-        <div class="filter-pill" data-owner="shared">共享</div>
+        <div class="filter-pill" data-owner="claude">小克</div>
+        <div class="filter-pill" data-owner="g">小G</div>
+        <div class="filter-pill" data-owner="glm">GLM</div>
+        <div class="filter-pill" data-owner="shared">阿瑜档案</div>
         <div class="filter-pill" data-owner="project">项目</div>
-        <div class="filter-pill" data-owner="legacy">旧线</div>
       </div>
       <div id="mem-feed">
         <div class="loading-wrap"><div class="spinner"></div><div>正在唤醒记忆…</div></div>
@@ -1116,8 +1120,10 @@ body {
     <div id="letter-form" style="display:none;margin-bottom:20px;padding:20px;background:var(--bg-card);border-radius:12px;border:1px solid var(--border);">
       <div style="margin-bottom:10px;display:flex;gap:8px;">
         <select id="letter-author" style="padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:14px;">
-          <option value="user">我写给小克</option>
-          <option value="claude">小克写给我</option>
+          <option value="ayu_to_claude">阿瑜 → 小克</option>
+          <option value="claude_to_ayu">小克 → 阿瑜</option>
+          <option value="ayu_to_g">阿瑜 → 小G</option>
+          <option value="g_to_ayu">小G → 阿瑜</option>
         </select>
         <input id="letter-title" placeholder="标题（可选）" style="flex:1;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:14px;">
       </div>
@@ -1326,13 +1332,12 @@ function ownerInfo(b){
   const scope=(m.scope||'').toLowerCase();
   const visibility=(m.visibility||'').toLowerCase();
   const empty=!agent&&!line&&!scope&&!visibility;
-  if(scope==='shared_about_ayu')return{key:'shared',label:'阿瑜档案',cls:'shared'};
-  if(line==='shared'||visibility==='shared')return{key:'shared',label:'公共',cls:'shared'};
+  if(scope==='shared_about_ayu'||line==='shared'||visibility==='shared')return{key:'shared',label:'阿瑜档案',cls:'shared'};
   if(scope==='project'||line==='project')return{key:'project',label:'项目',cls:'project'};
-  if(line==='g_line'||agent==='g')return{key:'g',label:'小G线',cls:'g'};
-  if(line==='glm_interim'||agent==='glm')return{key:'glm',label:'GLM临时',cls:'glm'};
-  if(line==='claude_line'||agent==='claude')return{key:'claude',label:'小克线',cls:'claude'};
-  if(empty)return{key:'legacy',label:'旧线/小克线兼容',cls:'legacy'};
+  if(line==='g_line'||agent==='g')return{key:'g',label:'小G',cls:'g'};
+  if(line==='glm_interim'||agent==='glm')return{key:'glm',label:'GLM',cls:'glm'};
+  if(line==='claude_line'||agent==='claude')return{key:'claude',label:'小克',cls:'claude'};
+  if(empty)return{key:'claude',label:'小克',cls:'claude'};
   return{key:'unknown',label:'未标注',cls:'unknown'};
 }
 function ownerBadge(b){
@@ -1346,7 +1351,6 @@ function ownerBadge(b){
 function ownerMatches(b,f){
   if(f==='all')return true;
   const o=ownerInfo(b);
-  if(f==='claude')return o.key==='claude'||o.key==='legacy';
   return o.key===f;
 }
 /* Shanghai timezone helpers */
@@ -2037,14 +2041,14 @@ function drawNetwork(ctx,W,H,nodes,edges,clusters,clusterKeys){
 async function loadConfig(){
   try{
     const r=await authFetch('/api/config');if(!r)return;const c=await r.json();
-    document.getElementById('cfg-dehy-model').value=c.dehydration.model||'gemini-2.5-flash';
+    document.getElementById('cfg-dehy-model').value=c.dehydration.model||'gemini-2.5-flash-lite';
     document.getElementById('cfg-dehy-url').value=c.dehydration.base_url||'https://generativelanguage.googleapis.com/v1beta/openai';
     document.getElementById('cfg-dehy-key').placeholder='当前: '+(c.dehydration.api_key_masked||'未设置');
     document.getElementById('cfg-dehy-key').value='';
     document.getElementById('cfg-dehy-maxtokens').value=c.dehydration.max_tokens||1024;
     document.getElementById('cfg-dehy-temp').value=c.dehydration.temperature||0.1;
     document.getElementById('cfg-emb-enabled').value=c.embedding.enabled?'true':'false';
-    document.getElementById('cfg-emb-model').value=c.embedding.model||'';
+    document.getElementById('cfg-emb-model').value=c.embedding.model||'text-embedding-004';
     document.getElementById('cfg-merge').value=c.merge_threshold||75;
     document.getElementById('config-readonly').innerHTML=`Transport: <b>${c.transport}</b><br>Buckets dir: <b>${c.buckets_dir}</b>`;
   }catch(e){document.getElementById('config-status').innerHTML=`<span style="color:var(--negative)">加载失败: ${e.message}</span>`;}
@@ -2232,14 +2236,24 @@ checkAuth().then(()=>init());
 /* ═══ Letters Tab ═══ */
 let _letterCache=[];
 function toggleLetterForm(){const f=document.getElementById('letter-form');f.style.display=f.style.display==='none'?'block':'none';}
+function letterPayloadForChoice(choice){
+  const map={
+    ayu_to_claude:{author:'user',agent_id:'claude',relationship_line:'claude_line',from_agent:'ayu',to_agent:'claude'},
+    claude_to_ayu:{author:'claude',agent_id:'claude',relationship_line:'claude_line',from_agent:'claude',to_agent:'ayu'},
+    ayu_to_g:{author:'user',agent_id:'g',relationship_line:'g_line',from_agent:'ayu',to_agent:'g'},
+    g_to_ayu:{author:'g',agent_id:'g',relationship_line:'g_line',from_agent:'g',to_agent:'ayu'}
+  };
+  return map[choice]||map.ayu_to_claude;
+}
 async function sendLetter(){
   const a=document.getElementById('letter-author').value;
+  const route=letterPayloadForChoice(a);
   const c=document.getElementById('letter-content').value.trim();
   const t=document.getElementById('letter-title').value.trim();
   if(!c){toast('内容不能为空');return;}
   const btn=document.getElementById('btn-send-letter');btn.disabled=true;btn.textContent='寄出中…';
   try{
-    await fetch('/api/letter_write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({author:a,content:c,title:t})});
+    await fetch('/api/letter_write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...route,content:c,title:t})});
     btn.disabled=false;btn.textContent='寄出';
     document.getElementById('letter-content').value='';
     document.getElementById('letter-title').value='';

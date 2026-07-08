@@ -34,11 +34,17 @@ def load_config(config_path: str = None) -> dict:
         "buckets_dir": os.path.join(os.path.dirname(os.path.abspath(__file__)), "buckets"),
         "merge_threshold": 75,
         "dehydration": {
-            "model": "deepseek-chat",
-            "base_url": "https://api.deepseek.com/v1",
+            "model": "gemini-2.5-flash-lite",
+            "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
             "api_key": "",
             "max_tokens": 1024,
             "temperature": 0.1,
+        },
+        "embedding": {
+            "enabled": True,
+            "model": "text-embedding-004",
+            "base_url": "",
+            "api_key": "",
         },
         "decay": {
             "lambda": 0.05,
