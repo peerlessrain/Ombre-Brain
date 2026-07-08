@@ -121,7 +121,9 @@ body {
 .search-wrap::before {
   content:'🔍'; position:absolute; left:12px; top:50%; transform:translateY(-50%);
   font-size:13px; pointer-events:none;
+  color:var(--text-secondary); opacity:.95; transition:var(--transition);
 }
+.search-wrap:focus-within::before, .search-wrap:hover::before { color:var(--primary-deep); opacity:1; }
 .logout-btn {
   background:none; border:1px solid var(--border); color:var(--text-muted);
   border-radius:16px; padding:5px 14px; font-size:12px; cursor:pointer;
@@ -377,15 +379,17 @@ body {
 
 /* Edit section in modal */
 .edit-section { padding-top:16px; border-top:1px solid var(--border); }
+.edit-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
 .edit-field { margin-bottom:12px; }
 .edit-lbl { font-size:12px; font-weight:600; color:var(--text-secondary); margin-bottom:5px; display:block; }
-.edit-inp, .edit-txt {
+.edit-inp, .edit-txt, .edit-select {
   width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:var(--radius-sm);
   font-size:13px; font-family:var(--font-body); color:var(--text); background:var(--bg-warm);
   outline:none; transition:var(--transition);
 }
-.edit-inp:focus, .edit-txt:focus { border-color:var(--primary-soft); box-shadow:0 0 0 3px rgba(155,142,196,0.1); }
+.edit-inp:focus, .edit-txt:focus, .edit-select:focus { border-color:var(--primary-soft); box-shadow:0 0 0 3px rgba(155,142,196,0.1); }
 .edit-txt { resize:vertical; min-height:70px; line-height:1.6; }
+.edit-help { font-size:11px; color:var(--text-muted); line-height:1.6; margin:-4px 0 12px; }
 
 .modal-actions { padding:14px 24px 24px; display:flex; gap:8px; justify-content:flex-end; }
 .btn {
@@ -791,6 +795,8 @@ body {
 [data-theme="dark"] .anchor-card { background:rgba(42,38,64,0.75); }
 [data-theme="dark"] .config-section { background:rgba(42,38,64,0.7); }
 [data-theme="dark"] .filter-pill { background:rgba(42,38,64,0.7); }
+[data-theme="dark"] .search-wrap::before { color:#D8D4E8; opacity:1; }
+[data-theme="dark"] .search-wrap:focus-within::before, [data-theme="dark"] .search-wrap:hover::before { color:#FFFFFF; }
 [data-theme="dark"] .cal-day.lv0 { background:var(--bg); }
 [data-theme="dark"] .cal-day.lv1 { background:#3A3060; color:#C8BBEA; }
 [data-theme="dark"] .cal-day.lv2 { background:#4A3878; color:#D8D0F0; }
@@ -919,11 +925,11 @@ body {
       </div>
       <div class="filter-pills owner-filter-pills" id="owner-filter-pills">
         <div class="filter-pill active" data-owner="all">全部脑区</div>
-        <div class="filter-pill" data-owner="claude">小克线</div>
-        <div class="filter-pill" data-owner="g">小G线</div>
-        <div class="filter-pill" data-owner="shared">共享</div>
+        <div class="filter-pill" data-owner="claude">小克</div>
+        <div class="filter-pill" data-owner="g">小G</div>
+        <div class="filter-pill" data-owner="glm">GLM</div>
+        <div class="filter-pill" data-owner="shared">阿瑜档案</div>
         <div class="filter-pill" data-owner="project">项目</div>
-        <div class="filter-pill" data-owner="legacy">旧线</div>
       </div>
       <div id="mem-feed">
         <div class="loading-wrap"><div class="spinner"></div><div>正在唤醒记忆…</div></div>
@@ -1116,8 +1122,10 @@ body {
     <div id="letter-form" style="display:none;margin-bottom:20px;padding:20px;background:var(--bg-card);border-radius:12px;border:1px solid var(--border);">
       <div style="margin-bottom:10px;display:flex;gap:8px;">
         <select id="letter-author" style="padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:14px;">
-          <option value="user">我写给小克</option>
-          <option value="claude">小克写给我</option>
+          <option value="ayu_to_claude">阿瑜 → 小克</option>
+          <option value="claude_to_ayu">小克 → 阿瑜</option>
+          <option value="ayu_to_g">阿瑜 → 小G</option>
+          <option value="g_to_ayu">小G → 阿瑜</option>
         </select>
         <input id="letter-title" placeholder="标题（可选）" style="flex:1;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:14px;">
       </div>
@@ -1210,6 +1218,18 @@ body {
         <div class="edit-field"><label class="edit-lbl">内容</label><textarea class="edit-txt" id="e-content"></textarea></div>
         <div class="edit-field"><label class="edit-lbl">标签（逗号分隔）</label><input class="edit-inp" id="e-tags" type="text"></div>
         <div class="edit-field"><label class="edit-lbl">领域（逗号分隔）</label><input class="edit-inp" id="e-domain" type="text"></div>
+        <div class="edit-section">
+          <div class="modal-label">编辑标记</div>
+          <div class="edit-help">多维标记只改 metadata，不修改记忆正文。</div>
+          <div class="edit-grid">
+            <div class="edit-field"><label class="edit-lbl">agent_id</label><select class="edit-select" id="e-agent"><option value="">（早期记忆）</option><option value="claude">小克</option><option value="g">小G</option><option value="glm">GLM</option><option value="ayu">阿瑜</option><option value="system">system</option></select></div>
+            <div class="edit-field"><label class="edit-lbl">relationship_line</label><select class="edit-select" id="e-line"><option value="">（早期记忆）</option><option value="claude_line">小克</option><option value="g_line">小G</option><option value="glm_interim">GLM</option><option value="shared">公共</option><option value="project">项目</option></select></div>
+            <div class="edit-field"><label class="edit-lbl">scope</label><select class="edit-select" id="e-scope"><option value="">（未标记）</option><option value="agent_private">私有</option><option value="shared_about_ayu">阿瑜档案</option><option value="project">项目</option></select></div>
+            <div class="edit-field"><label class="edit-lbl">visibility</label><select class="edit-select" id="e-visibility"><option value="">（未标记）</option><option value="same_agent">same_agent</option><option value="same_line">same_line</option><option value="shared">shared</option><option value="manual_only">manual_only</option><option value="archived">archived</option></select></div>
+          </div>
+          <div class="edit-field"><label class="edit-lbl">notes</label><textarea class="edit-txt" id="e-notes" style="min-height:54px"></textarea></div>
+          <button class="btn btn-sec" id="btn-save-owner" type="button">保存标记</button>
+        </div>
 </div>
     </div></div>
     <div class="modal-actions">
@@ -1319,35 +1339,65 @@ function bResolved(b){return!!b.resolved;}
 function bDigested(b){return!!b.digested;}
 function bScore(b){return b.score||0;}
 function bMeta(b){return b.metadata||b||{};}
-function ownerInfo(b){
+const OWNER_TEXT={
+  claude:'小克',
+  g:'小G',
+  glm:'GLM',
+  ayu:'阿瑜档案',
+  system:'System',
+  project:'项目',
+  private:'私有',
+  shared:'阿瑜档案',
+  interim:'临时',
+  early:'早期记忆'
+};
+function ownerFacts(b){
   const m=bMeta(b);
   const agent=(m.agent_id||'').toLowerCase();
   const line=(m.relationship_line||'').toLowerCase();
   const scope=(m.scope||'').toLowerCase();
   const visibility=(m.visibility||'').toLowerCase();
   const empty=!agent&&!line&&!scope&&!visibility;
-  if(scope==='shared_about_ayu')return{key:'shared',label:'阿瑜档案',cls:'shared'};
-  if(line==='shared'||visibility==='shared')return{key:'shared',label:'公共',cls:'shared'};
-  if(scope==='project'||line==='project')return{key:'project',label:'项目',cls:'project'};
-  if(line==='g_line'||agent==='g')return{key:'g',label:'小G线',cls:'g'};
-  if(line==='glm_interim'||agent==='glm')return{key:'glm',label:'GLM临时',cls:'glm'};
-  if(line==='claude_line'||agent==='claude')return{key:'claude',label:'小克线',cls:'claude'};
-  if(empty)return{key:'legacy',label:'旧线/小克线兼容',cls:'legacy'};
-  return{key:'unknown',label:'未标注',cls:'unknown'};
+  const shared=scope==='shared_about_ayu'||line==='shared'||visibility==='shared';
+  const project=scope==='project'||line==='project';
+  const glm=line==='glm_interim'||agent==='glm';
+  const g=line==='g_line'||agent==='g';
+  const claude=line==='claude_line'||agent==='claude'||empty;
+  const ayu=agent==='ayu';
+  return{agent,line,scope,visibility,empty,shared,project,glm,g,claude,ayu};
+}
+function ownerInfo(b){
+  const f=ownerFacts(b);
+  if(f.project)return{key:'project',label:OWNER_TEXT.project,cls:'project'};
+  if(f.shared){
+    if(f.g)return{key:'g',label:OWNER_TEXT.g+' \u00b7 '+OWNER_TEXT.shared,cls:'g'};
+    if(f.glm)return{key:'glm',label:'GLM \u00b7 '+OWNER_TEXT.shared,cls:'glm'};
+    if(f.claude&&!f.empty)return{key:'claude',label:OWNER_TEXT.claude+' \u00b7 '+OWNER_TEXT.shared,cls:'claude'};
+    return{key:'shared',label:OWNER_TEXT.shared,cls:'shared'};
+  }
+  if(f.g)return{key:'g',label:OWNER_TEXT.g+' \u00b7 '+OWNER_TEXT.private,cls:'g'};
+  if(f.glm)return{key:'glm',label:'GLM \u00b7 '+OWNER_TEXT.interim,cls:'glm'};
+  if(f.claude)return{key:'claude',label:OWNER_TEXT.claude+(f.empty?'':' \u00b7 '+OWNER_TEXT.private),cls:'claude'};
+  if(f.ayu)return{key:'shared',label:OWNER_TEXT.shared,cls:'shared'};
+  return{key:'unknown',label:'Unknown',cls:'unknown'};
 }
 function ownerBadge(b){
   const o=ownerInfo(b);
   const m=bMeta(b);
   const from=m.from_agent||'', to=m.to_agent||'';
-  const title=[m.agent_id,m.relationship_line,m.scope,m.visibility].filter(Boolean).join(' / ') || 'legacy claude_line';
-  const route=from||to?` · ${from||'?'}→${to||'?'}`:'';
+  const title=[m.agent_id,m.relationship_line,m.scope,m.visibility].filter(Boolean).join(' / ') || OWNER_TEXT.early;
+  const route=from||to?` route ${from||'?'} -> ${to||'?'}`:'';
   return `<span class="owner-pill ${o.cls}" title="${esc(title+route)}">${esc(o.label)}</span>`;
 }
 function ownerMatches(b,f){
   if(f==='all')return true;
-  const o=ownerInfo(b);
-  if(f==='claude')return o.key==='claude'||o.key==='legacy';
-  return o.key===f;
+  const facts=ownerFacts(b);
+  if(f==='shared')return facts.shared;
+  if(f==='project')return facts.project;
+  if(f==='claude')return facts.claude||facts.shared;
+  if(f==='g')return facts.g||facts.shared;
+  if(f==='glm')return facts.glm||facts.shared;
+  return ownerInfo(b).key===f;
 }
 /* Shanghai timezone helpers */
 function shanghaiParts(d){
@@ -1635,6 +1685,11 @@ async function openDetail(id){
   document.getElementById('e-content').value=content;
   document.getElementById('e-tags').value=tags.join(', ');
   document.getElementById('e-domain').value=domains.filter(Boolean).join(', ');
+  document.getElementById('e-agent').value=meta.agent_id||'';
+  document.getElementById('e-line').value=meta.relationship_line||'';
+  document.getElementById('e-scope').value=meta.scope||'';
+  document.getElementById('e-visibility').value=meta.visibility||'';
+  document.getElementById('e-notes').value=meta.notes||'';
   document.getElementById('modal-overlay').classList.add('open');
   document.body.style.overflow='hidden';
 }
@@ -1651,6 +1706,23 @@ document.getElementById('btn-save').onclick=async()=>{
     if(r&&r.ok){toast('已保存 ✓');closeModal();await reload();}
     else toast('保存失败，后端可能不支持此操作');
   }catch{toast('保存失败');}
+};
+document.getElementById('btn-save-owner').onclick=async()=>{
+  if(!currentBucket)return;
+  if(!confirm('这会改变该记忆对不同 agent 的可见范围。'))return;
+  const id=bId(currentBucket);
+  const up={
+    agent_id:document.getElementById('e-agent').value,
+    relationship_line:document.getElementById('e-line').value,
+    scope:document.getElementById('e-scope').value,
+    visibility:document.getElementById('e-visibility').value,
+    notes:document.getElementById('e-notes').value.trim()
+  };
+  try{
+    const r=await authFetch('/api/bucket/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(up)});
+    if(r&&r.ok){toast('标记已保存 ✓');closeModal();await reload();}
+    else toast('标记保存失败');
+  }catch{toast('标记保存失败');}
 };
 document.getElementById('btn-delete').onclick=async()=>{
   if(!currentBucket||!confirm('确定删除？不可恢复。'))return;
@@ -2037,14 +2109,14 @@ function drawNetwork(ctx,W,H,nodes,edges,clusters,clusterKeys){
 async function loadConfig(){
   try{
     const r=await authFetch('/api/config');if(!r)return;const c=await r.json();
-    document.getElementById('cfg-dehy-model').value=c.dehydration.model||'gemini-2.5-flash';
+    document.getElementById('cfg-dehy-model').value=c.dehydration.model||'gemini-2.5-flash-lite';
     document.getElementById('cfg-dehy-url').value=c.dehydration.base_url||'https://generativelanguage.googleapis.com/v1beta/openai';
     document.getElementById('cfg-dehy-key').placeholder='当前: '+(c.dehydration.api_key_masked||'未设置');
     document.getElementById('cfg-dehy-key').value='';
     document.getElementById('cfg-dehy-maxtokens').value=c.dehydration.max_tokens||1024;
     document.getElementById('cfg-dehy-temp').value=c.dehydration.temperature||0.1;
     document.getElementById('cfg-emb-enabled').value=c.embedding.enabled?'true':'false';
-    document.getElementById('cfg-emb-model').value=c.embedding.model||'';
+    document.getElementById('cfg-emb-model').value=c.embedding.model||'text-embedding-004';
     document.getElementById('cfg-merge').value=c.merge_threshold||75;
     document.getElementById('config-readonly').innerHTML=`Transport: <b>${c.transport}</b><br>Buckets dir: <b>${c.buckets_dir}</b>`;
   }catch(e){document.getElementById('config-status').innerHTML=`<span style="color:var(--negative)">加载失败: ${e.message}</span>`;}
@@ -2232,14 +2304,24 @@ checkAuth().then(()=>init());
 /* ═══ Letters Tab ═══ */
 let _letterCache=[];
 function toggleLetterForm(){const f=document.getElementById('letter-form');f.style.display=f.style.display==='none'?'block':'none';}
+function letterPayloadForChoice(choice){
+  const map={
+    ayu_to_claude:{author:'user',agent_id:'claude',relationship_line:'claude_line',from_agent:'ayu',to_agent:'claude'},
+    claude_to_ayu:{author:'claude',agent_id:'claude',relationship_line:'claude_line',from_agent:'claude',to_agent:'ayu'},
+    ayu_to_g:{author:'user',agent_id:'g',relationship_line:'g_line',from_agent:'ayu',to_agent:'g'},
+    g_to_ayu:{author:'g',agent_id:'g',relationship_line:'g_line',from_agent:'g',to_agent:'ayu'}
+  };
+  return map[choice]||map.ayu_to_claude;
+}
 async function sendLetter(){
   const a=document.getElementById('letter-author').value;
+  const route=letterPayloadForChoice(a);
   const c=document.getElementById('letter-content').value.trim();
   const t=document.getElementById('letter-title').value.trim();
   if(!c){toast('内容不能为空');return;}
   const btn=document.getElementById('btn-send-letter');btn.disabled=true;btn.textContent='寄出中…';
   try{
-    await fetch('/api/letter_write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({author:a,content:c,title:t})});
+    await fetch('/api/letter_write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...route,content:c,title:t})});
     btn.disabled=false;btn.textContent='寄出';
     document.getElementById('letter-content').value='';
     document.getElementById('letter-title').value='';
