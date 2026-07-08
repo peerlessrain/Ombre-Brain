@@ -535,6 +535,13 @@ class ImportEngine:
                         valence=item.get("valence", 0.5),
                         arousal=item.get("arousal", 0.3),
                         name=item.get("name"),
+                        agent_id="claude",
+                        relationship_line="claude_line",
+                        scope="agent_private",
+                        visibility="same_line",
+                        source_module="import",
+                        legacy_import=True,
+                        migration_status="tagged",
                     )
                     if self.embedding_engine:
                         try:
@@ -679,6 +686,13 @@ class ImportEngine:
             valence=valence,
             arousal=arousal,
             name=name or None,
+            agent_id="claude",
+            relationship_line="claude_line",
+            scope="agent_private",
+            visibility="same_line",
+            source_module="import",
+            legacy_import=True,
+            migration_status="tagged",
         )
         if self.embedding_engine:
             try:

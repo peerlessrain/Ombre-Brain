@@ -40,6 +40,20 @@ from utils import generate_bucket_id, sanitize_name, safe_path, now_iso
 
 logger = logging.getLogger("ombre_brain.bucket")
 
+OWNERSHIP_FIELDS = (
+    "agent_id",
+    "relationship_line",
+    "scope",
+    "visibility",
+    "source_module",
+    "source_agent_model",
+    "legacy_import",
+    "migration_status",
+    "notes",
+    "from_agent",
+    "to_agent",
+)
+
 
 class BucketManager:
     """
@@ -115,6 +129,17 @@ class BucketManager:
         why_remembered: str = "",
         weight: float = None,
         dont_surface: bool = False,
+        agent_id: str = "",
+        relationship_line: str = "",
+        scope: str = "",
+        visibility: str = "",
+        source_module: str = "",
+        source_agent_model: str = "",
+        legacy_import: bool | None = None,
+        migration_status: str = "",
+        notes: str = "",
+        from_agent: str = "",
+        to_agent: str = "",
     ) -> str:
         """
         Create a new memory bucket, return bucket ID.
@@ -165,6 +190,23 @@ class BucketManager:
             metadata["weight"] = weight
         if dont_surface:
             metadata["dont_surface"] = True
+        ownership_values = {
+            "agent_id": agent_id,
+            "relationship_line": relationship_line,
+            "scope": scope,
+            "visibility": visibility,
+            "source_module": source_module,
+            "source_agent_model": source_agent_model,
+            "legacy_import": legacy_import,
+            "migration_status": migration_status,
+            "notes": notes,
+            "from_agent": from_agent,
+            "to_agent": to_agent,
+        }
+        for key, value in ownership_values.items():
+            if value is None or value == "":
+                continue
+            metadata[key] = value
 
         # --- Assemble Markdown file (frontmatter + body) ---
         # --- 组装 Markdown 文件 ---
@@ -341,6 +383,14 @@ class BucketManager:
             post["title"] = kwargs["title"]
         if "letter_date" in kwargs:
             post["letter_date"] = kwargs["letter_date"]
+        for field in OWNERSHIP_FIELDS:
+            if field not in kwargs:
+                continue
+            value = kwargs[field]
+            if value is None or value == "":
+                post.metadata.pop(field, None)
+            else:
+                post[field] = value
             
         # --- Auto-refresh activation time / 自动刷新激活时间 ---
         post["last_active"] = now_iso()

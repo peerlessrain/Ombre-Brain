@@ -103,6 +103,113 @@ dehydrator = Dehydrator(config)                      # Dehydrator / 脱水器
 decay_engine = DecayEngine(config, bucket_mgr)       # Decay engine / 衰减引擎
 import_engine = ImportEngine(config, bucket_mgr, dehydrator, embedding_engine)  # Import engine / 导入引擎
 
+VALID_AGENT_IDS = {"claude", "g", "glm", "ayu", "system", "unknown"}
+VALID_RELATIONSHIP_LINES = {"claude_line", "g_line", "glm_interim", "shared", "project"}
+VALID_SCOPES = {"agent_private", "shared_about_ayu", "project", "system_archive"}
+VALID_VISIBILITIES = {"same_agent", "same_line", "shared", "manual_only", "archived"}
+
+
+def _clean_enum(value: str, allowed: set[str], default: str) -> str:
+    value = str(value or "").strip().lower()
+    return value if value in allowed else default
+
+
+def _default_line_for_agent(agent_id: str) -> str:
+    return {
+        "claude": "claude_line",
+        "g": "g_line",
+        "glm": "glm_interim",
+        "ayu": "shared",
+        "system": "shared",
+    }.get(agent_id, "claude_line")
+
+
+def _owner_context(agent_id: str = "", relationship_line: str = "") -> dict:
+    agent = _clean_enum(
+        agent_id or os.environ.get("OMBRE_AGENT_ID", "claude"),
+        VALID_AGENT_IDS,
+        "claude",
+    )
+    line = _clean_enum(
+        relationship_line or os.environ.get("OMBRE_RELATIONSHIP_LINE", "") or _default_line_for_agent(agent),
+        VALID_RELATIONSHIP_LINES,
+        _default_line_for_agent(agent),
+    )
+    return {"agent_id": agent, "relationship_line": line}
+
+
+def _ownership_for_create(
+    source_module: str,
+    agent_id: str = "",
+    relationship_line: str = "",
+    scope: str = "",
+    visibility: str = "",
+    source_agent_model: str = "",
+    from_agent: str = "",
+    to_agent: str = "",
+) -> dict:
+    ctx = _owner_context(agent_id, relationship_line)
+    final_scope = _clean_enum(scope, VALID_SCOPES, "agent_private")
+    final_visibility = _clean_enum(visibility, VALID_VISIBILITIES, "same_line")
+    return {
+        "agent_id": ctx["agent_id"],
+        "relationship_line": ctx["relationship_line"],
+        "scope": final_scope,
+        "visibility": final_visibility,
+        "source_module": source_module,
+        "source_agent_model": str(source_agent_model or "").strip(),
+        "legacy_import": False,
+        "migration_status": "tagged",
+        "from_agent": str(from_agent or "").strip(),
+        "to_agent": str(to_agent or "").strip(),
+    }
+
+
+def _effective_ownership(meta: dict) -> dict:
+    """Infer old untagged buckets as Claude-line legacy for compatibility."""
+    meta = meta or {}
+    agent = str(meta.get("agent_id") or "").strip().lower()
+    line = str(meta.get("relationship_line") or "").strip().lower()
+    if not agent and not line:
+        return {
+            "agent_id": "claude",
+            "relationship_line": "claude_line",
+            "scope": "agent_private",
+            "visibility": "same_line",
+            "legacy_import": True,
+            "migration_status": meta.get("migration_status") or "unmigrated",
+        }
+    agent = _clean_enum(agent, VALID_AGENT_IDS, "unknown")
+    line = _clean_enum(line, VALID_RELATIONSHIP_LINES, _default_line_for_agent(agent))
+    return {
+        "agent_id": agent,
+        "relationship_line": line,
+        "scope": _clean_enum(meta.get("scope", ""), VALID_SCOPES, "agent_private"),
+        "visibility": _clean_enum(meta.get("visibility", ""), VALID_VISIBILITIES, "same_line"),
+        "legacy_import": bool(meta.get("legacy_import", False)),
+        "migration_status": meta.get("migration_status", ""),
+    }
+
+
+def _bucket_visible_to_context(bucket: dict, ctx: dict) -> bool:
+    meta = bucket.get("metadata", {}) if isinstance(bucket, dict) else {}
+    owner = _effective_ownership(meta)
+    if owner["scope"] == "shared_about_ayu" or owner["relationship_line"] == "shared" or owner["visibility"] == "shared":
+        return True
+    if owner["scope"] == "project" or owner["relationship_line"] == "project":
+        return ctx.get("relationship_line") == "project" or ctx.get("agent_id") == "system"
+    if owner["visibility"] in ("manual_only", "archived"):
+        return False
+    if owner["visibility"] == "same_agent":
+        return owner["agent_id"] == ctx.get("agent_id")
+    if owner["visibility"] == "same_line":
+        return owner["relationship_line"] == ctx.get("relationship_line")
+    return owner["agent_id"] == ctx.get("agent_id") or owner["relationship_line"] == ctx.get("relationship_line")
+
+
+def _visible_buckets(buckets: list[dict], ctx: dict) -> list[dict]:
+    return [b for b in buckets if _bucket_visible_to_context(b, ctx)]
+
 # --- Create MCP server instance / 创建 MCP 服务器实例 ---
 # host="0.0.0.0" so Docker container's SSE is externally reachable
 # stdio mode ignores host (no network)
@@ -474,6 +581,7 @@ async def _merge_or_create(
     valence: float,
     arousal: float,
     name: str = "",
+    ownership: dict | None = None,
 ) -> tuple[str, bool]:
     """
     Check if a similar bucket exists for merging; merge if so, create if not.
@@ -483,6 +591,8 @@ async def _merge_or_create(
     """
     try:
         existing = await bucket_mgr.search(content, limit=1, domain_filter=domain or None)
+        if ownership:
+            existing = _visible_buckets(existing, ownership)
     except Exception as e:
         logger.warning(f"Search for merge failed, creating new / 合并搜索失败，新建: {e}")
         existing = []
@@ -524,6 +634,7 @@ async def _merge_or_create(
         valence=valence,
         arousal=arousal,
         name=name or None,
+        **(ownership or {}),
     )
     # --- Generate embedding for new bucket ---
     try:
@@ -551,9 +662,12 @@ async def breath(
     arousal: float = -1,
     max_results: int = 20,
     importance_min: int = -1,
+    agent_id: str = "",
+    relationship_line: str = "",
 ) -> str:
     """检索/浮现记忆。不传query或传空=自动浮现,有query=关键词检索。max_tokens控制返回总token上限(默认10000)。domain逗号分隔,valence/arousal 0~1(-1忽略)。max_results控制返回数量上限(默认20,最大50)。importance_min>=1时按重要度批量拉取(不走语义搜索,按importance降序返回最多20条)。"""
     await decay_engine.ensure_started()
+    owner_ctx = _owner_context(agent_id, relationship_line)
     max_results = min(max_results, 50)
     max_tokens = min(max_tokens, 20000)
 
@@ -564,6 +678,7 @@ async def breath(
             all_buckets = await bucket_mgr.list_all(include_archive=False)
         except Exception as e:
             return f"记忆系统暂时无法访问: {e}"
+        all_buckets = _visible_buckets(all_buckets, owner_ctx)
         filtered = [
             b for b in all_buckets
             if int(b["metadata"].get("importance", 0)) >= importance_min
@@ -595,6 +710,7 @@ async def breath(
     if domain.strip().lower() == "feel":
         try:
             all_buckets = await bucket_mgr.list_all(include_archive=False)
+            all_buckets = _visible_buckets(all_buckets, owner_ctx)
             feels = [b for b in all_buckets if b["metadata"].get("type") == "feel"]
             feels.sort(key=lambda b: b["metadata"].get("created", ""), reverse=True)
             if not feels:
@@ -618,6 +734,7 @@ async def breath(
         except Exception as e:
             logger.error(f"Failed to list buckets for surfacing / 浮现列桶失败: {e}")
             return "记忆系统暂时无法访问。"
+        all_buckets = _visible_buckets(all_buckets, owner_ctx)
 
         # --- Pinned/protected buckets: always surface as core principles ---
         # --- 钉选桶：作为核心准则，始终浮现 ---
@@ -743,6 +860,7 @@ async def breath(
     except Exception as e:
         logger.error(f"Search failed / 检索失败: {e}")
         return "检索过程出错，请稍后重试。"
+    matches = _visible_buckets(matches, owner_ctx)
 
     # --- Exclude pinned/protected from search results (they surface in surfacing mode) ---
     # --- 搜索模式排除钉选桶（它们在浮现模式中始终可见）---
@@ -756,7 +874,7 @@ async def breath(
         for bucket_id, sim_score in vector_results:
             if bucket_id not in matched_ids and sim_score > 0.5:
                 bucket = await bucket_mgr.get(bucket_id)
-                if bucket and not (bucket["metadata"].get("pinned") or bucket["metadata"].get("protected")):
+                if bucket and _bucket_visible_to_context(bucket, owner_ctx) and not (bucket["metadata"].get("pinned") or bucket["metadata"].get("protected")):
                     bucket["score"] = round(sim_score * 100, 2)
                     bucket["vector_match"] = True
                     matches.append(bucket)
@@ -797,6 +915,7 @@ async def breath(
     if len(matches) < 3 and random.random() < 0.4:
         try:
             all_buckets = await bucket_mgr.list_all(include_archive=False)
+            all_buckets = _visible_buckets(all_buckets, owner_ctx)
             matched_ids = {b["id"] for b in matches}
             low_weight = [
                 b for b in all_buckets
@@ -834,8 +953,14 @@ async def hold(
     importance: int = 5,
     pinned: bool = False,
     feel: bool = False,
-    source_bucket: str = "",    valence: float = -1,
+    source_bucket: str = "",
+    valence: float = -1,
     arousal: float = -1,
+    agent_id: str = "",
+    relationship_line: str = "",
+    scope: str = "",
+    visibility: str = "",
+    source_agent_model: str = "",
 ) -> str:
     """存储单条记忆,自动打标+合并。tags逗号分隔,importance 1-10。pinned=True创建永久钉选桶。feel=True存储你的第一人称感受(不参与普通浮现)。source_bucket=被消化的记忆桶ID(feel模式下,标记源记忆为已消化)。"""
     await decay_engine.ensure_started()
@@ -846,6 +971,14 @@ async def hold(
 
     importance = max(1, min(10, importance))
     extra_tags = [t.strip() for t in tags.split(",") if t.strip()]
+    owner = _ownership_for_create(
+        "feel" if feel else "hold",
+        agent_id=agent_id,
+        relationship_line=relationship_line,
+        scope=scope,
+        visibility=visibility,
+        source_agent_model=source_agent_model,
+    )
 
     # --- Feel mode: store as feel type, minimal metadata ---
     # --- Feel 模式：存为 feel 类型，最少元数据 ---
@@ -862,6 +995,7 @@ async def hold(
             arousal=feel_arousal,
             name=None,
             bucket_type="feel",
+            **owner,
         )
         try:
             await embedding_engine.generate_and_store(bucket_id, content)
@@ -871,6 +1005,9 @@ async def hold(
         # --- 标记源记忆为已消化 + 存储模型视角的 valence ---
         if source_bucket and source_bucket.strip():
             try:
+                source = await bucket_mgr.get(source_bucket.strip())
+                if source and not _bucket_visible_to_context(source, owner):
+                    return f"🫧feel→{bucket_id}\n源记忆 {source_bucket.strip()} 不属于当前脑区，未标记 digested。"
                 update_kwargs = {"digested": True}
                 if 0 <= valence <= 1:
                     update_kwargs["model_valence"] = feel_valence
@@ -915,6 +1052,7 @@ async def hold(
             name=suggested_name or None,
             bucket_type="permanent",
             pinned=True,
+            **{**owner, "source_module": "hold"},
         )
         try:
             await embedding_engine.generate_and_store(bucket_id, content)
@@ -931,6 +1069,7 @@ async def hold(
         valence=final_valence,
         arousal=final_arousal,
         name=suggested_name,
+        ownership={**owner, "source_module": "hold"},
     )
 
     action = "合并→" if is_merged else "新建→"
@@ -942,12 +1081,27 @@ async def hold(
 # 工具 3：grow — 生长，一天的碎片长成记忆
 # =============================================================
 @mcp.tool()
-async def grow(content: str) -> str:
+async def grow(
+    content: str,
+    agent_id: str = "",
+    relationship_line: str = "",
+    scope: str = "",
+    visibility: str = "",
+    source_agent_model: str = "",
+) -> str:
     """日记归档,自动拆分为多桶。短内容(<30字)走快速路径。"""
     await decay_engine.ensure_started()
 
     if not content or not content.strip():
         return "内容为空，无法整理。"
+    owner = _ownership_for_create(
+        "grow",
+        agent_id=agent_id,
+        relationship_line=relationship_line,
+        scope=scope,
+        visibility=visibility,
+        source_agent_model=source_agent_model,
+    )
 
     # --- Short content fast path: skip digest, use hold logic directly ---
     # --- 短内容快速路径：跳过 digest 拆分，直接走 hold 逻辑省一次 API ---
@@ -972,6 +1126,7 @@ async def grow(content: str) -> str:
             valence=analysis.get("valence", 0.5),
             arousal=analysis.get("arousal", 0.3),
             name=analysis.get("suggested_name", ""),
+            ownership=owner,
         )
         action = "合并" if is_merged else "新建"
         return f"{action} → {result_name} | {','.join(analysis.get('domain', []))} V{analysis.get('valence', 0.5):.1f}/A{analysis.get('arousal', 0.3):.1f}"
@@ -1002,6 +1157,7 @@ async def grow(content: str) -> str:
                 valence=item.get("valence", 0.5),
                 arousal=item.get("arousal", 0.3),
                 name=item.get("name", ""),
+                ownership=owner,
             )
 
             if is_merged:
@@ -1040,11 +1196,20 @@ async def trace(
     digested: int = -1,
     content: str = "",
     delete: bool = False,
+    agent_id: str = "",
+    relationship_line: str = "",
 ) -> str:
     """修改记忆元数据或内容。resolved=1沉底/0激活,pinned=1钉选/0取消,digested=1隐藏(保留但不浮现)/0取消隐藏,content=替换桶正文,delete=True删除。只传需改的,-1或空=不改。"""
 
     if not bucket_id or not bucket_id.strip():
         return "请提供有效的 bucket_id。"
+    owner_ctx = _owner_context(agent_id, relationship_line)
+
+    bucket = await bucket_mgr.get(bucket_id)
+    if not bucket:
+        return f"未找到记忆桶: {bucket_id}"
+    if not _bucket_visible_to_context(bucket, owner_ctx):
+        return f"这条记忆桶不属于当前脑区，不能修改: {bucket_id}"
 
     # --- Delete mode / 删除模式 ---
     if delete:
@@ -1052,10 +1217,6 @@ async def trace(
         if success:
             embedding_engine.delete_embedding(bucket_id)
         return f"已遗忘记忆桶: {bucket_id}" if success else f"未找到记忆桶: {bucket_id}"
-
-    bucket = await bucket_mgr.get(bucket_id)
-    if not bucket:
-        return f"未找到记忆桶: {bucket_id}"
 
     # --- Collect only fields actually passed / 只收集用户实际传入的字段 ---
     updates = {}
@@ -1119,7 +1280,7 @@ async def trace(
 # 工具 5：pulse — 脉搏，系统状态 + 记忆列表
 # =============================================================
 @mcp.tool()
-async def pulse(include_archive: bool = False) -> str:
+async def pulse(include_archive: bool = False, agent_id: str = "", relationship_line: str = "") -> str:
     """系统状态+记忆桶列表。include_archive=True含归档。"""
     try:
         stats = await bucket_mgr.get_stats()
@@ -1140,6 +1301,8 @@ async def pulse(include_archive: bool = False) -> str:
         buckets = await bucket_mgr.list_all(include_archive=include_archive)
     except Exception as e:
         return status + f"\n列出记忆桶失败: {e}"
+    owner_ctx = _owner_context(agent_id, relationship_line)
+    buckets = _visible_buckets(buckets, owner_ctx)
 
     # --- Anchor & I counts ---
     anchor_count = sum(1 for b in buckets if b.get("metadata", {}).get("anchor"))
@@ -1203,7 +1366,7 @@ async def pulse(include_archive: bool = False) -> str:
 # Claude then decides: resolve some, write feels, or do nothing.
 # =============================================================
 @mcp.tool()
-async def dream() -> str:
+async def dream(agent_id: str = "", relationship_line: str = "") -> str:
     """做梦——读取最近新增的记忆桶,供你自省。读完后可以trace(resolved=1)放下,或hold(feel=True)写感受。"""
     await decay_engine.ensure_started()
 
@@ -1212,6 +1375,8 @@ async def dream() -> str:
     except Exception as e:
         logger.error(f"Dream failed to list buckets: {e}")
         return "记忆系统暂时无法访问。"
+    owner_ctx = _owner_context(agent_id, relationship_line)
+    all_buckets = _visible_buckets(all_buckets, owner_ctx)
 
     # --- Filter: recent surface-level dynamic buckets (not permanent/pinned/feel) ---
     candidates = [
@@ -1333,9 +1498,20 @@ async def I(
     aspect: str = "",
     read: bool = False,
     limit: int = 20,
+    agent_id: str = "",
+    relationship_line: str = "",
+    source_agent_model: str = "",
 ) -> str:
     """写下关于我自己的认识。content=我观察到的（空=读取模式）。aspect=维度:nature/values/patterns/limits/becoming/uncertainty/stance（可选）。read=True=读取所有自我认知。I 条目不参与普通 breath/dream。"""
     await decay_engine.ensure_started()
+    owner = _ownership_for_create(
+        "i",
+        agent_id=agent_id,
+        relationship_line=relationship_line,
+        scope="agent_private",
+        visibility="same_agent",
+        source_agent_model=source_agent_model,
+    )
 
     if read or not content.strip():
         # --- 读取模式 ---
@@ -1343,6 +1519,7 @@ async def I(
             all_buckets = await bucket_mgr.list_all(include_archive=False)
         except Exception as e:
             return f"读取失败: {e}"
+        all_buckets = _visible_buckets(all_buckets, owner)
         i_buckets = [b for b in all_buckets if b.get("metadata", {}).get("type") == "i"]
         if not i_buckets:
             return "还没有任何自我认知记录。"
@@ -1374,6 +1551,7 @@ async def I(
             bucket_type="i",
             source_tool="I",
             dont_surface=True,
+            **owner,
         )
     except Exception as e:
         return f"写入失败: {e}"
@@ -1386,8 +1564,14 @@ async def I(
 # 把已有桶钉为关系/身份基准点，不主动浮现但检索时永远可达
 # =============================================================
 @mcp.tool()
-async def anchor(bucket_id: str) -> str:
+async def anchor(bucket_id: str, agent_id: str = "", relationship_line: str = "") -> str:
     """把这条桶设为 anchor（坐标系）。anchor 不会主动浮现在默认 breath，但 query/domain/emotion 命中时仍会返回。硬上限 24，已满时拒绝并提示先 release。"""
+    owner_ctx = _owner_context(agent_id, relationship_line)
+    bucket = await bucket_mgr.get(bucket_id)
+    if not bucket:
+        return f"没能锚住。未找到记忆桶: {bucket_id}"
+    if not _bucket_visible_to_context(bucket, owner_ctx):
+        return f"没能锚住。这条记忆桶不属于当前关系线: {bucket_id}"
     result = await bucket_mgr.set_anchor(bucket_id, True)
     if not result["ok"]:
         return f"没能锚住。{result.get('error', '未知错误')} 当前 anchor: {result['count']}/{result['limit']}。"
@@ -1397,8 +1581,14 @@ async def anchor(bucket_id: str) -> str:
 
 
 @mcp.tool()
-async def release(bucket_id: str) -> str:
+async def release(bucket_id: str, agent_id: str = "", relationship_line: str = "") -> str:
     """把这条桶从 anchor 状态释放，恢复正常浮现资格。pinned 状态不受影响。"""
+    owner_ctx = _owner_context(agent_id, relationship_line)
+    bucket = await bucket_mgr.get(bucket_id)
+    if not bucket:
+        return f"释放失败。未找到记忆桶: {bucket_id}"
+    if not _bucket_visible_to_context(bucket, owner_ctx):
+        return f"释放失败。这条记忆桶不属于当前关系线: {bucket_id}"
     result = await bucket_mgr.set_anchor(bucket_id, False)
     if not result["ok"]:
         return f"释放失败。{result.get('error', '未知错误')}"
@@ -1417,11 +1607,15 @@ async def letter_write(
     user_name: str = "",
     title: str = "",
     date: str = "",
+    agent_id: str = "",
+    relationship_line: str = "",
+    visibility: str = "",
+    source_agent_model: str = "",
 ) -> str:
-    """写一封信。author必填：\"user\"=她写给我的，\"claude\"=我写给她的。title/date可选。信件永久保存，不压缩不衰减。"""
+    """写一封信。author可用: \"user\"=她写给当前机, \"claude\"/\"g\"/\"glm\"=当前机或指定机写给她。title/date可选。信件永久保存，不压缩不衰减。"""
     a = author.strip().lower()
-    if a not in ("user", "claude"):
-        return "author 必须是 'user' 或 'claude'。"
+    if a not in ("user", "claude", "g", "glm"):
+        return "author 必须是 'user'、'claude'、'g' 或 'glm'。"
     if not content or not content.strip():
         return "信件内容不能为空。"
     extra_meta = {"author": a}
@@ -1431,6 +1625,19 @@ async def letter_write(
         extra_meta["title"] = title.strip()[:120]
     if date.strip():
         extra_meta["letter_date"] = date.strip()
+    ctx = _owner_context(agent_id, relationship_line)
+    from_agent = "ayu" if a == "user" else (a if a in ("g", "glm") else ctx["agent_id"])
+    to_agent = ctx["agent_id"] if a == "user" else "ayu"
+    owner = _ownership_for_create(
+        "letter",
+        agent_id=ctx["agent_id"],
+        relationship_line=ctx["relationship_line"],
+        scope="agent_private",
+        visibility=visibility or "same_line",
+        source_agent_model=source_agent_model,
+        from_agent=from_agent,
+        to_agent=to_agent,
+    )
     try:
         bucket_id = await bucket_mgr.create(
             content=content.strip(),
@@ -1442,6 +1649,7 @@ async def letter_write(
             name=(title.strip()[:60] or f"{a}_{date.strip() or 'letter'}"),
             bucket_type="letter",
             source_tool="letter",
+            **owner,
         )
         await bucket_mgr.update(bucket_id, **extra_meta)
     except Exception as e:
@@ -1456,15 +1664,19 @@ async def letter_read(
     author: str = "",
     date_from: str = "",
     date_to: str = "",
+    agent_id: str = "",
+    relationship_line: str = "",
 ) -> str:
-    """翻历史信件。query=关键词检索(可选)；author=\"user\"/\"claude\"过滤方向；date_from/date_to=日期范围。无query时按时间倒序。"""
+    """翻历史信件。query=关键词检索(可选)；author=\"user\"/\"claude\"/\"g\"/\"glm\"过滤方向；date_from/date_to=日期范围。无query时按时间倒序。"""
     limit = max(1, min(50, limit))
     try:
         all_b = await bucket_mgr.list_all(include_archive=False)
     except Exception as e:
         return f"读取信件失败: {e}"
+    owner_ctx = _owner_context(agent_id, relationship_line)
+    all_b = _visible_buckets(all_b, owner_ctx)
     letters = [b for b in all_b if b["metadata"].get("type") == "letter"]
-    if author.strip().lower() in ("user", "claude"):
+    if author.strip().lower() in ("user", "claude", "g", "glm"):
         letters = [b for b in letters if b["metadata"].get("author") == author.strip().lower()]
     def _within(b):
         d = b["metadata"].get("letter_date") or b["metadata"].get("created", "")
@@ -1504,11 +1716,22 @@ async def api_letter_write(request):
         if not c:
             return JSONResponse({"error": "content is empty"}, status_code=400)
         t = body.get("title", "").strip()
+        ctx = _owner_context()
+        owner = _ownership_for_create(
+            "letter",
+            agent_id=ctx["agent_id"],
+            relationship_line=ctx["relationship_line"],
+            scope="agent_private",
+            visibility="same_line",
+            from_agent=("ayu" if a == "user" else ctx["agent_id"]),
+            to_agent=(ctx["agent_id"] if a == "user" else "ayu"),
+        )
         bucket_id = await bucket_mgr.create(
             content=c, tags=["__letter__"], importance=10,
             domain=["letter"], valence=0.5, arousal=0.3,
             name=(t[:60] or f"{a}_letter"), bucket_type="letter",
             source_tool="letter",
+            **owner,
         )
         extra = {"author": a}
         if t: extra["title"] = t[:120]
