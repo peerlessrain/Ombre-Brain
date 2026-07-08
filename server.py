@@ -599,9 +599,9 @@ async def _merge_or_create(
 
     if existing and existing[0].get("score", 0) > config.get("merge_threshold", 75):
         bucket = existing[0]
-        # --- Never merge into pinned/protected buckets ---
-        # --- 不合并到钉选/保护桶 ---
-        if not (bucket["metadata"].get("pinned") or bucket["metadata"].get("protected")):
+        # --- Never merge into pinned/protected/anchor buckets ---
+        # --- 不合并到钉选/保护/锚点桶 ---
+        if not (bucket["metadata"].get("pinned") or bucket["metadata"].get("protected") or bucket["metadata"].get("anchor")):
             try:
                 merged = await dehydrator.merge(bucket["content"], content)
                 old_v = bucket["metadata"].get("valence", 0.5)
@@ -1774,6 +1774,16 @@ async def api_buckets(request):
                 "letter_date": meta.get("letter_date", ""),
                 "title": meta.get("title", ""),
                 "dont_surface": meta.get("dont_surface", False),
+                "agent_id": meta.get("agent_id", ""),
+                "relationship_line": meta.get("relationship_line", ""),
+                "scope": meta.get("scope", ""),
+                "visibility": meta.get("visibility", ""),
+                "source_module": meta.get("source_module", ""),
+                "source_agent_model": meta.get("source_agent_model", ""),
+                "legacy_import": meta.get("legacy_import", False),
+                "migration_status": meta.get("migration_status", ""),
+                "from_agent": meta.get("from_agent", ""),
+                "to_agent": meta.get("to_agent", ""),
             })
         result.sort(key=lambda x: x["score"], reverse=True)
         return JSONResponse(result)
@@ -1857,6 +1867,16 @@ async def api_search(request):
                 "letter_date": meta.get("letter_date", ""),
                 "title": meta.get("title", ""),
                 "dont_surface": meta.get("dont_surface", False),
+                "agent_id": meta.get("agent_id", ""),
+                "relationship_line": meta.get("relationship_line", ""),
+                "scope": meta.get("scope", ""),
+                "visibility": meta.get("visibility", ""),
+                "source_module": meta.get("source_module", ""),
+                "source_agent_model": meta.get("source_agent_model", ""),
+                "legacy_import": meta.get("legacy_import", False),
+                "migration_status": meta.get("migration_status", ""),
+                "from_agent": meta.get("from_agent", ""),
+                "to_agent": meta.get("to_agent", ""),
             })
         return JSONResponse(result)
     except Exception as e:
@@ -1956,6 +1976,10 @@ async def api_breath_debug(request):
                     "name": meta.get("name", bid),
                     "domain": meta.get("domain", []),
                     "type": meta.get("type", "dynamic"),
+                    "agent_id": meta.get("agent_id", ""),
+                    "relationship_line": meta.get("relationship_line", ""),
+                    "scope": meta.get("scope", ""),
+                    "visibility": meta.get("visibility", ""),
                     "resolved": resolved,
                     "pinned": meta.get("pinned", False),
                     "scores": {

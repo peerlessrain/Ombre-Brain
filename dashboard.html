@@ -239,6 +239,38 @@ body {
 .mc-badge.feel { background:rgba(212,168,224,0.15); color:#9B5AAE; }
 .mc-badge.imp { background:rgba(196,126,139,0.15); color:#A05060; }
 .mc-badge.resolved { background:rgba(180,180,200,0.15); color:#888; }
+.owner-pill {
+  display:inline-flex; align-items:center; gap:4px; max-width:100%;
+  padding:2px 8px; border-radius:999px; font-size:10px; font-weight:600; line-height:1.4;
+  border:1px solid transparent; white-space:nowrap; flex-shrink:0;
+}
+.owner-pill.claude, .owner-pill.legacy { background:rgba(155,142,196,0.14); color:var(--primary-deep); border-color:rgba(155,142,196,0.18); }
+.owner-pill.g { background:rgba(106,142,174,0.14); color:#4F7890; border-color:rgba(106,142,174,0.2); }
+.owner-pill.glm { background:rgba(196,152,120,0.16); color:#A46C42; border-color:rgba(196,152,120,0.22); }
+.owner-pill.shared { background:rgba(106,174,126,0.14); color:#4E8B61; border-color:rgba(106,174,126,0.2); }
+.owner-pill.project { background:rgba(126,118,148,0.14); color:var(--text-secondary); border-color:rgba(126,118,148,0.2); }
+.owner-pill.unknown { background:rgba(176,168,192,0.14); color:var(--text-muted); border-color:rgba(176,168,192,0.22); }
+.owner-filter-pills { margin-top:-12px; margin-bottom:18px; }
+.owner-filter-pills .filter-pill { font-size:11px; padding:5px 12px; }
+.anchor-card {
+  background:rgba(255,255,255,0.74); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+  border-radius:var(--radius-md); padding:16px 18px; border:1px solid var(--border-soft);
+  cursor:pointer; transition:all 0.25s cubic-bezier(0.4,0,0.2,1); position:relative; overflow:hidden;
+  box-shadow:var(--shadow-sm);
+}
+.anchor-card::before {
+  content:''; position:absolute; top:0; left:0; bottom:0; width:3px;
+  background:linear-gradient(180deg,var(--primary),var(--accent)); border-radius:3px 0 0 3px;
+}
+.anchor-card:hover { border-color:var(--primary-soft); box-shadow:var(--shadow-md); transform:translateY(-2px); }
+.anchor-card-head { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; margin-bottom:8px; }
+.anchor-card-title { font-size:14px; font-weight:600; color:var(--text); line-height:1.4; min-width:0; }
+.anchor-card-icon { font-size:14px; flex-shrink:0; opacity:.5; color:var(--primary); }
+.anchor-card-preview {
+  font-size:12px; color:var(--text-secondary); line-height:1.5; margin-bottom:8px;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+}
+.anchor-card-meta { display:flex; gap:4px; align-items:center; flex-wrap:wrap; }
 
 .mc-preview {
   font-size:12px; color:var(--text-secondary); line-height:1.5;
@@ -756,6 +788,7 @@ body {
 }
 [data-theme="dark"] #network-canvas { background:var(--card); }
 [data-theme="dark"] .mem-card { background:rgba(42,38,64,0.75); }
+[data-theme="dark"] .anchor-card { background:rgba(42,38,64,0.75); }
 [data-theme="dark"] .config-section { background:rgba(42,38,64,0.7); }
 [data-theme="dark"] .filter-pill { background:rgba(42,38,64,0.7); }
 [data-theme="dark"] .cal-day.lv0 { background:var(--bg); }
@@ -883,6 +916,14 @@ body {
           <button class="view-toggle-btn active" data-view="list" onclick="setViewMode('list')">☰</button>
           <button class="view-toggle-btn" data-view="grid" onclick="setViewMode('grid')">⊞</button>
         </div>
+      </div>
+      <div class="filter-pills owner-filter-pills" id="owner-filter-pills">
+        <div class="filter-pill active" data-owner="all">全部脑区</div>
+        <div class="filter-pill" data-owner="claude">小克线</div>
+        <div class="filter-pill" data-owner="g">小G线</div>
+        <div class="filter-pill" data-owner="shared">共享</div>
+        <div class="filter-pill" data-owner="project">项目</div>
+        <div class="filter-pill" data-owner="legacy">旧线</div>
       </div>
       <div id="mem-feed">
         <div class="loading-wrap"><div class="spinner"></div><div>正在唤醒记忆…</div></div>
@@ -1254,7 +1295,7 @@ document.querySelectorAll('.nav-tab').forEach(tab=>{
 /* ═══════════════════════════════════════
    Memory List
    ═══════════════════════════════════════ */
-let allBuckets=[], currentFilter='all', searchQ='', calYear, calMonth, currentBucket=null, viewMode='list', calDateFilter='';
+let allBuckets=[], currentFilter='all', ownerFilter='all', searchQ='', calYear, calMonth, currentBucket=null, viewMode='list', calDateFilter='';
 
 async function fetchBuckets(){
   try{
@@ -1277,6 +1318,36 @@ function bFeel(b){return b.type==='feel'||!!b.feel;}
 function bResolved(b){return!!b.resolved;}
 function bDigested(b){return!!b.digested;}
 function bScore(b){return b.score||0;}
+function bMeta(b){return b.metadata||b||{};}
+function ownerInfo(b){
+  const m=bMeta(b);
+  const agent=(m.agent_id||'').toLowerCase();
+  const line=(m.relationship_line||'').toLowerCase();
+  const scope=(m.scope||'').toLowerCase();
+  const visibility=(m.visibility||'').toLowerCase();
+  const empty=!agent&&!line&&!scope&&!visibility;
+  if(scope==='shared_about_ayu'||line==='shared'||visibility==='shared')return{key:'shared',label:'共享阿瑜',cls:'shared'};
+  if(scope==='project'||line==='project')return{key:'project',label:'项目',cls:'project'};
+  if(line==='g_line'||agent==='g')return{key:'g',label:'小G线',cls:'g'};
+  if(line==='glm_interim'||agent==='glm')return{key:'glm',label:'GLM临时',cls:'glm'};
+  if(line==='claude_line'||agent==='claude')return{key:'claude',label:'小克线',cls:'claude'};
+  if(empty)return{key:'legacy',label:'旧线/小克线兼容',cls:'legacy'};
+  return{key:'unknown',label:'未标注',cls:'unknown'};
+}
+function ownerBadge(b){
+  const o=ownerInfo(b);
+  const m=bMeta(b);
+  const from=m.from_agent||'', to=m.to_agent||'';
+  const title=[m.agent_id,m.relationship_line,m.scope,m.visibility].filter(Boolean).join(' / ') || 'legacy claude_line';
+  const route=from||to?` · ${from||'?'}→${to||'?'}`:'';
+  return `<span class="owner-pill ${o.cls}" title="${esc(title+route)}">${esc(o.label)}</span>`;
+}
+function ownerMatches(b,f){
+  if(f==='all')return true;
+  const o=ownerInfo(b);
+  if(f==='claude')return o.key==='claude'||o.key==='legacy';
+  return o.key===f;
+}
 /* Shanghai timezone helpers */
 function shanghaiParts(d){
   const s=d.toLocaleString('en-CA',{timeZone:'Asia/Shanghai',hour12:false,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
@@ -1306,6 +1377,7 @@ function filterBuckets(bs){
   else if(currentFilter==='important')r=r.filter(b=>bImp(b)>=7);
   else if(currentFilter==='resolved')r=r.filter(bResolved);
   else if(currentFilter==='digested')r=r.filter(bDigested);
+  r=r.filter(b=>ownerMatches(b,ownerFilter));
   if(searchQ){
     const q=searchQ.toLowerCase();
     r=r.filter(b=>(bName(b)+' '+bPreview(b)+' '+bTags(b).join(' ')+' '+bDomains(b).join(' ')).toLowerCase().includes(q));
@@ -1341,6 +1413,7 @@ function renderFeed(bs){
       let badges='';if(pinned)badges+='<span class="mc-badge pin">钉选</span>';
       if(feel)badges+='<span class="mc-badge feel">feel</span>';
       if(resolved)badges+='<span class="mc-badge resolved">已沉底</span>';
+      badges+=ownerBadge(b);
       let domH=domains.filter(Boolean).slice(0,2).map(d=>`<span class="mc-domain" style="cursor:pointer" onclick="event.stopPropagation();document.getElementById('search-input').value=this.textContent;searchQ=this.textContent;renderFeed(allBuckets);">${esc(d)}</span>`).join('');
       let tagH=tags.slice(0,3).map(t=>`<span class="mc-tag">#${esc(t)}</span>`).join('');
       h+=`<div class="${cc}" onclick="openDetail('${id}')">`;
@@ -1365,6 +1438,7 @@ function renderFeed(bs){
     if(feel)badges+='<span class="mc-badge feel">feel</span>';
     if(resolved)badges+='<span class="mc-badge resolved">已沉底</span>';
     if(imp>=8&&!pinned&&!feel)badges+=`<span class="mc-badge imp">imp:${imp}</span>`;
+    badges+=ownerBadge(b);
     let domH=domains.filter(Boolean).slice(0,2).map(d=>`<span class="mc-domain" style="cursor:pointer" onclick="event.stopPropagation();document.getElementById('search-input').value=this.textContent;searchQ=this.textContent;renderFeed(allBuckets);">${esc(d)}</span>`).join('');
     let tagH=tags.slice(0,3).map(t=>`<span class="mc-tag" style="cursor:pointer" onclick="event.stopPropagation();document.getElementById('search-input').value='${t}';searchQ='${t}';renderFeed(allBuckets);">#${esc(t)}</span>`).join('');
     if(tags.length>3)tagH+=`<span class="mc-tag">+${tags.length-3}</span>`;
@@ -1438,9 +1512,17 @@ function renderFeed(bs){
 document.getElementById('filter-pills').onclick=e=>{
   const pill=e.target.closest('.filter-pill');
   if(!pill)return;
-  document.querySelectorAll('.filter-pill').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('#filter-pills .filter-pill').forEach(p=>p.classList.remove('active'));
   pill.classList.add('active');
   currentFilter=pill.dataset.f;
+  renderFeed(allBuckets);
+};
+document.getElementById('owner-filter-pills').onclick=e=>{
+  const pill=e.target.closest('.filter-pill');
+  if(!pill)return;
+  document.querySelectorAll('#owner-filter-pills .filter-pill').forEach(p=>p.classList.remove('active'));
+  pill.classList.add('active');
+  ownerFilter=pill.dataset.owner||'all';
   renderFeed(allBuckets);
 };
 
@@ -1531,6 +1613,8 @@ async function openDetail(id){
     <div class="mm-item"><div class="mm-label">领域</div><div class="mm-val">${domains.filter(Boolean).join(', ')||'—'}</div></div>
     <div class="mm-item"><div class="mm-label">效价</div><div class="mm-val">${meta.valence!=null?meta.valence:b.valence!=null?b.valence:'—'}</div></div>
     <div class="mm-item"><div class="mm-label">唤醒度</div><div class="mm-val">${meta.arousal!=null?meta.arousal:b.arousal!=null?b.arousal:'—'}</div></div>
+    <div class="mm-item"><div class="mm-label">归属</div><div class="mm-val">${ownerBadge(b)}</div></div>
+    <div class="mm-item"><div class="mm-label">来源</div><div class="mm-val">${[meta.from_agent&&('from '+meta.from_agent),meta.to_agent&&('to '+meta.to_agent),meta.source_module].filter(Boolean).join(' / ')||'—'}</div></div>
     <div class="mm-item"><div class="mm-label">Bucket ID</div><div class="mm-val" style="font-size:11px;word-break:break-all;font-family:monospace;cursor:pointer;user-select:all;" title="点击可选中复制">${bId(b)}</div></div>
     <div class="mm-item"><div class="mm-label">状态</div><div class="mm-val">${bPinned(b)?'📌 钉选':bResolved(b)?'💤 已沉底':'🟢 活跃'}</div></div>
     <div class="mm-item"><div class="mm-label">权重</div><div class="mm-val">${bScore(b).toFixed(4)}</div></div>`;
@@ -1600,7 +1684,7 @@ async function runBreathDebug(){
         return`<div class="score-bar-group"><div class="score-bar-label"><span>${k}×${r.weights[k]}</span><span>${v.toFixed(2)}</span></div><div class="score-bar-track"><div class="score-bar-fill" style="width:${pct}%;background:${barC[k]||'var(--primary)'}"></div></div></div>`;
       }).join('');
       const icon=r.pinned?'📌':r.resolved?'💤':r.type==='feel'?'💜':'💭';
-      return`<div class="score-row"><span class="rank">${String(i+1).padStart(2,'0')}</span><span class="name">${icon} ${esc(r.name)}</span><div class="score-bars">${bars}</div><span class="score-final ${r.passed_threshold?'score-pass':'score-fail'}">${r.normalized.toFixed(1)}</span></div>`;
+      return`<div class="score-row"><span class="rank">${String(i+1).padStart(2,'0')}</span><span class="name">${icon} ${esc(r.name)} ${ownerBadge(r)}</span><div class="score-bars">${bars}</div><span class="score-final ${r.passed_threshold?'score-pass':'score-fail'}">${r.normalized.toFixed(1)}</span></div>`;
     }).join('');
   }catch(e){results.innerHTML='<div class="loading-wrap">请求失败: '+e.message+'</div>';}
 }
@@ -1619,7 +1703,7 @@ function tlMakeItem(b){
   let h=`<div class="tl-item" onclick="openDetail('${bId(b)}')" style="display:flex;align-items:flex-start;gap:10px;">`;
   h+=`<span style="font-size:11px;color:var(--text-muted);font-variant-numeric:tabular-nums;min-width:38px;padding-top:2px;">${time}</span>`;
   h+=`<div style="flex:1;min-width:0;">`;
-  h+=`<div style="display:flex;align-items:center;gap:6px;"><span class="tl-item-title">${esc(bName(b))}</span>`;
+  h+=`<div style="display:flex;align-items:center;gap:6px;"><span class="tl-item-title">${esc(bName(b))}</span>${ownerBadge(b)}`;
   if(badge)h+=`<span>${badge}</span>`;
   h+=`<div style="display:flex;gap:1.5px;align-items:flex-end;height:14px;margin-left:auto;flex-shrink:0;">${bars}</div></div>`;
   const p=bPreview(b);if(p)h+=`<div class="tl-item-preview">${esc(p)}</div>`;
@@ -2175,13 +2259,15 @@ async function loadLetters(){
     _letterCache=d.filter(b=>b.type==='letter').sort((a,b)=>(b.letter_date||b.created||'').localeCompare(a.letter_date||a.created||''));
     if(!_letterCache.length){grid.innerHTML='<div style="text-align:center;padding:40px;color:var(--text-muted);width:100%;">还没有信件。写一封吧。</div>';return;}
     grid.innerHTML=_letterCache.map((b,i)=>{
-      const who=b.author==='user'?'阿瑜→小克':'小克→阿瑜';
+      const from=b.from_agent||'', to=b.to_agent||'';
+      const who=from||to?`${from||'?'}→${to||'?'}`:(b.author==='user'?'阿瑜→小克':'小克→阿瑜');
       const d=(b.letter_date||b.created||'').slice(0,10);
       const t=b.title||'';
       const cls=b.author==='user'?'from-user':'from-claude';
       return `<div class="letter-env ${cls}" onclick="openLetterModal(${i})">
         <div class="letter-env-date">${d}</div>
         <div class="letter-env-who">${who}</div>
+        <div style="margin-bottom:4px;">${ownerBadge(b)}</div>
         ${t?`<div class="letter-env-title">${t}</div>`:`<div class="letter-env-title" style="color:var(--text-muted);font-style:italic;">${(b.content_preview||b.content||'').slice(0,20)}…</div>`}
       </div>`;
     }).join('');
@@ -2189,7 +2275,7 @@ async function loadLetters(){
 }
 function openLetterModal(idx){
   const b=_letterCache[idx];if(!b)return;
-  const who=b.author==='user'?'阿瑜 → 小克':'小克 → 阿瑜';
+  const who=(b.from_agent||b.to_agent)?`${b.from_agent||'?'} → ${b.to_agent||'?'}`:(b.author==='user'?'阿瑜 → 小克':'小克 → 阿瑜');
   document.getElementById('lm-who').textContent=who;
   document.getElementById('lm-date').textContent=(b.letter_date||b.created||'').slice(0,10);
   document.getElementById('lm-title').textContent=b.title||'';
@@ -2228,15 +2314,15 @@ async function loadAnchors(){
         const domains=(b.domain||[]).filter(Boolean);
         const preview=(b.content_preview||b.content||'').slice(0,80);
         const imp=b.importance||5;
-        const domH=domains.slice(0,2).map(d=>`<span style="font-size:10px;padding:2px 8px;border-radius:6px;background:var(--primary-glass);color:var(--primary-deep);font-weight:500;">${d}</span>`).join(' ');
-        return `<div style="background:rgba(255,255,255,0.7);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-radius:var(--radius-md);padding:16px 18px;border:1px solid var(--border-soft);cursor:pointer;transition:all 0.25s cubic-bezier(0.4,0,0.2,1);position:relative;overflow:hidden;" onmouseover="this.style.borderColor='var(--primary-soft)';this.style.boxShadow='0 4px 20px rgba(155,142,196,0.15)';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='var(--border-soft)';this.style.boxShadow='none';this.style.transform=''" onclick="openModal('${b.id}')">
-          <div style="position:absolute;top:0;left:0;bottom:0;width:3px;background:linear-gradient(180deg,var(--primary),var(--accent));border-radius:3px 0 0 3px;"></div>
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px;">
-            <div style="font-size:14px;font-weight:600;color:var(--text);line-height:1.4;">${name}</div>
-            <span style="font-size:14px;flex-shrink:0;opacity:.4;">⚓</span>
+        const domH=domains.slice(0,2).map(d=>`<span class="mc-domain">${esc(d)}</span>`).join(' ');
+        return `<div class="anchor-card" onclick="openDetail('${b.id}')">
+          <div class="anchor-card-head">
+            <div class="anchor-card-title">${esc(name)}</div>
+            <span class="anchor-card-icon">⚓</span>
           </div>
-          ${preview?`<div style="font-size:12px;color:var(--text-secondary);line-height:1.5;margin-bottom:8px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${preview}</div>`:''}
-          <div style="display:flex;gap:4px;align-items:center;">
+          ${preview?`<div class="anchor-card-preview">${esc(preview)}</div>`:''}
+          <div class="anchor-card-meta">
+            ${ownerBadge(b)}
             ${domH}
             <span style="margin-left:auto;font-size:11px;color:var(--text-muted);">imp:${imp}</span>
           </div>
@@ -2284,7 +2370,7 @@ function renderISelf(){
     let aspectH=aspects.map(a=>`<span class="i-panel-card-aspect">${a}</span>`).join(' ');
     return `<div class="i-panel-card">
       <div style="display:flex;align-items:center;justify-content:space-between;">
-        <div>${aspectH||'<span class="i-panel-card-aspect" style="opacity:.5;">—</span>'}</div>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">${aspectH||'<span class="i-panel-card-aspect" style="opacity:.5;">—</span>'}${ownerBadge(b)}</div>
         <span class="i-panel-card-date">${d}</span>
       </div>
       <div class="i-panel-card-content">${b.content||''}</div>
