@@ -1774,7 +1774,6 @@ document.getElementById('btn-save').onclick=async()=>{
     if(index>=0)allBuckets[index]=updated;
     renderFeed(allBuckets);updateStats(allBuckets);
     toast('已保存 ✓');closeModal();
-    await reload();
   }catch(e){toast('保存失败：'+(e&&e.message?e.message:'网络错误'));}
   finally{btn.disabled=false;btn.textContent='保存修改';}
 };
