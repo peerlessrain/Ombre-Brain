@@ -1115,19 +1115,19 @@ body {
 <!-- ═══ Letters Tab ═══ -->
 <div class="content-area" id="view-letters" style="display:none">
   <div style="max-width:960px;margin:0 auto;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px;">
       <h3 style="margin:0;color:var(--text);">💌 信</h3>
-      <button class="btn btn-pri" onclick="toggleLetterForm()">写信</button>
+      <button class="btn btn-pri" id="letter-form-toggle" onclick="toggleLetterForm()">写信</button>
     </div>
     <div id="letter-form" style="display:none;margin-bottom:20px;padding:20px;background:var(--bg-card);border-radius:12px;border:1px solid var(--border);">
-      <div style="margin-bottom:10px;display:flex;gap:8px;">
+      <div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;">
         <select id="letter-author" style="padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:14px;">
           <option value="ayu_to_claude">阿瑜 → 小克</option>
           <option value="claude_to_ayu">小克 → 阿瑜</option>
           <option value="ayu_to_g">阿瑜 → 小G</option>
           <option value="g_to_ayu">小G → 阿瑜</option>
         </select>
-        <input id="letter-title" placeholder="标题（可选）" style="flex:1;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:14px;">
+        <input id="letter-title" placeholder="标题（可选）" style="flex:1 1 220px;min-width:0;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:14px;">
       </div>
       <textarea id="letter-content" rows="8" placeholder="写下你想说的话…" style="width:100%;padding:12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;line-height:1.8;resize:vertical;box-sizing:border-box;"></textarea>
       <button class="btn btn-pri" id="btn-send-letter" onclick="sendLetter()" style="margin-top:10px;">寄出</button>
@@ -1227,7 +1227,6 @@ body {
             <div class="edit-field"><label class="edit-lbl">可见范围</label><select class="edit-select" id="e-visibility"><option value="line">同关系可见</option><option value="self">仅本人可见</option><option value="public">公共可见</option><option value="manual">手动可见</option><option value="archive">已归档</option></select></div>
           </div>
           <div class="edit-field"><label class="edit-lbl">备注</label><textarea class="edit-txt" id="e-notes" placeholder="可选。记录为什么这样标记，不会改变记忆正文。" style="min-height:54px"></textarea></div>
-          <button class="btn btn-sec" id="btn-save-owner" type="button">保存标记</button>
         </div>
 </div>
     </div></div>
@@ -1318,7 +1317,7 @@ let allBuckets=[], currentFilter='all', ownerFilter='all', searchQ='', calYear, 
 
 async function fetchBuckets(){
   try{
-    const r=await authFetch('/api/buckets');
+    const r=await authFetch('/api/buckets',{cache:'no-store'});
     if(!r)return[];
     const d=await r.json();
     return Array.isArray(d)?d:(d.buckets||[]);
@@ -1747,33 +1746,37 @@ async function readApiError(r,fallback){
 document.getElementById('btn-save').onclick=async()=>{
   if(!currentBucket)return;
   const id=bId(currentBucket);
-  const up={name:document.getElementById('e-name').value.trim(),content:document.getElementById('e-content').value.trim(),
-    tags:document.getElementById('e-tags').value.split(/[,，]/).map(s=>s.trim()).filter(Boolean),
-    domain:document.getElementById('e-domain').value.split(/[,，]/).map(s=>s.trim()).filter(Boolean)};
-  try{
-    const r=await authFetch('/api/bucket/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(up)});
-    if(r&&r.ok){toast('已保存 ✓');closeModal();await reload();}
-    else toast('保存失败：'+await readApiError(r,'后端未接受这次修改'));
-  }catch{toast('保存失败');}
-};
-document.getElementById('btn-save-owner').onclick=async()=>{
-  if(!currentBucket)return;
-  if(!confirm('这会改变这条记忆的分类和可见范围，确认保存吗？'))return;
-  const id=bId(currentBucket);
+  const oldMeta=bMeta(currentBucket);
   const ownerMeta=ownerMetaFromChoice(document.getElementById('e-owner').value);
   const scopeValue=scopeMetaFromChoice(document.getElementById('e-scope').value);
   const visibilityValue=visibilityMetaFromChoice(document.getElementById('e-visibility').value);
+  const nextContent=document.getElementById('e-content').value.trim();
   const up={
+    name:document.getElementById('e-name').value.trim(),
+    tags:document.getElementById('e-tags').value.split(/[,，]/).map(s=>s.trim()).filter(Boolean),
+    domain:document.getElementById('e-domain').value.split(/[,，]/).map(s=>s.trim()).filter(Boolean),
     ...ownerMeta,
     scope:scopeValue,
     visibility:visibilityValue,
     notes:document.getElementById('e-notes').value.trim()
   };
+  if(nextContent!==(currentBucket.content||bPreview(currentBucket)))up.content=nextContent;
+  const btn=document.getElementById('btn-save');
+  btn.disabled=true;btn.textContent='保存中…';
   try{
     const r=await authFetch('/api/bucket/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(up)});
-    if(r&&r.ok){toast('标记已保存 ✓');closeModal();await reload();}
-    else toast('标记保存失败：'+await readApiError(r,'后端未接受这次标记修改'));
-  }catch{toast('标记保存失败');}
+    if(!r||!r.ok){toast('保存失败：'+await readApiError(r,'后端未接受这次修改'));return;}
+    const saved=await r.json();
+    const savedMeta={...oldMeta,...(saved.metadata||{})};
+    const savedContent=saved.content??up.content??currentBucket.content??bPreview(currentBucket);
+    const updated={...currentBucket,...savedMeta,metadata:savedMeta,content:savedContent,content_preview:savedContent.slice(0,200),score:saved.score??bScore(currentBucket)};
+    const index=allBuckets.findIndex(b=>bId(b)===id);
+    if(index>=0)allBuckets[index]=updated;
+    renderFeed(allBuckets);updateStats(allBuckets);
+    toast('已保存 ✓');closeModal();
+    await reload();
+  }catch(e){toast('保存失败：'+(e&&e.message?e.message:'网络错误'));}
+  finally{btn.disabled=false;btn.textContent='保存修改';}
 };
 document.getElementById('btn-delete').onclick=async()=>{
   if(!currentBucket||!confirm('确定删除？不可恢复。'))return;
@@ -2354,7 +2357,12 @@ function toggleTheme(){
 checkAuth().then(()=>init());
 /* ═══ Letters Tab ═══ */
 let _letterCache=[];
-function toggleLetterForm(){const f=document.getElementById('letter-form');f.style.display=f.style.display==='none'?'block':'none';}
+function toggleLetterForm(){
+  const f=document.getElementById('letter-form'),btn=document.getElementById('letter-form-toggle');
+  const open=f.style.display==='none';
+  f.style.display=open?'block':'none';
+  if(btn)btn.textContent=open?'收起':'写信';
+}
 function letterPayloadForChoice(choice){
   const map={
     ayu_to_claude:{author:'user',agent_id:'claude',relationship_line:'claude_line',from_agent:'ayu',to_agent:'claude'},
@@ -2372,24 +2380,26 @@ async function sendLetter(){
   if(!c){toast('内容不能为空');return;}
   const btn=document.getElementById('btn-send-letter');btn.disabled=true;btn.textContent='寄出中…';
   try{
-    await fetch('/api/letter_write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...route,content:c,title:t})});
-    btn.disabled=false;btn.textContent='寄出';
+    const r=await authFetch('/api/letter_write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...route,content:c,title:t})});
+    if(!r||!r.ok){toast('寄出失败：'+await readApiError(r,'后端未接受这封信'));return;}
     document.getElementById('letter-content').value='';
     document.getElementById('letter-title').value='';
     document.getElementById('letter-form').style.display='none';
+    document.getElementById('letter-form-toggle').textContent='写信';
     toast('信已寄出 💌');
     await loadLetters();
-    setTimeout(reload,800);
   }catch(e){
+    toast('寄出失败：'+(e&&e.message?e.message:'网络错误'));
+  }finally{
     btn.disabled=false;btn.textContent='寄出';
-    toast('发送可能失败，请刷新检查');
-    loadLetters();
   }
 }
 async function loadLetters(){
   const grid=document.querySelector('#letter-list .letter-grid');
   try{
-    const r=await fetch('/api/buckets');const d=await r.json();
+    const r=await authFetch('/api/buckets',{cache:'no-store'});
+    if(!r||!r.ok){grid.innerHTML='<div style="color:var(--text-muted);">加载失败</div>';return;}
+    const d=await r.json();
     _letterCache=d.filter(b=>b.type==='letter').sort((a,b)=>(b.letter_date||b.created||'').localeCompare(a.letter_date||a.created||''));
     if(!_letterCache.length){grid.innerHTML='<div style="text-align:center;padding:40px;color:var(--text-muted);width:100%;">还没有信件。写一封吧。</div>';return;}
     grid.innerHTML=_letterCache.map((b,i)=>{
