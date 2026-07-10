@@ -135,6 +135,8 @@ def _owner_context(agent_id: str = "", relationship_line: str = "") -> dict:
         VALID_RELATIONSHIP_LINES,
         _default_line_for_agent(agent),
     )
+    if agent == "glm":
+        line = "glm_interim"
     return {"agent_id": agent, "relationship_line": line}
 
 
@@ -150,7 +152,10 @@ def _ownership_for_create(
 ) -> dict:
     ctx = _owner_context(agent_id, relationship_line)
     final_scope = _clean_enum(scope, VALID_SCOPES, "agent_private")
-    final_visibility = _clean_enum(visibility, VALID_VISIBILITIES, "same_line")
+    if ctx["agent_id"] == "glm" and ctx["relationship_line"] == "glm_interim":
+        final_visibility = "manual_only"
+    else:
+        final_visibility = _clean_enum(visibility, VALID_VISIBILITIES, "same_line")
     return {
         "agent_id": ctx["agent_id"],
         "relationship_line": ctx["relationship_line"],
@@ -209,6 +214,51 @@ def _bucket_visible_to_context(bucket: dict, ctx: dict) -> bool:
 
 def _visible_buckets(buckets: list[dict], ctx: dict) -> list[dict]:
     return [b for b in buckets if _bucket_visible_to_context(b, ctx)]
+
+
+def _bucket_type(bucket: dict) -> str:
+    return str((bucket or {}).get("metadata", {}).get("type") or "").strip().lower()
+
+
+def _bucket_is_legacy_claude(bucket: dict) -> bool:
+    meta = (bucket or {}).get("metadata", {})
+    owner = _effective_ownership(meta)
+    return bool(owner.get("legacy_import")) and owner.get("agent_id") == "claude"
+
+
+def _can_auto_merge_into(bucket: dict, owner_ctx: dict) -> bool:
+    """Hard safety gate for any future merge logic. Current hold/grow do not auto-merge."""
+    if not bucket or not _bucket_visible_to_context(bucket, owner_ctx):
+        return False
+    meta = bucket.get("metadata", {})
+    owner = _effective_ownership(meta)
+    if owner.get("agent_id") != owner_ctx.get("agent_id"):
+        return False
+    if owner.get("relationship_line") != owner_ctx.get("relationship_line"):
+        return False
+    if meta.get("pinned") or meta.get("protected") or meta.get("anchor"):
+        return False
+    if _bucket_type(bucket) in ("i", "letter", "feel", "permanent"):
+        return False
+    if int(meta.get("importance", 0) or 0) >= 8:
+        return False
+    if _bucket_is_legacy_claude(bucket):
+        return False
+    return True
+
+
+def _editable_bucket(bucket: dict, owner_ctx: dict, expected_type: str = "") -> tuple[bool, str]:
+    if not bucket:
+        return False, "未找到记忆桶。"
+    if not _bucket_visible_to_context(bucket, owner_ctx):
+        return False, "这条记忆不属于当前脑区，不能修改。"
+    if expected_type and _bucket_type(bucket) != expected_type:
+        return False, f"这条记忆不是 {expected_type} 类型。"
+    return True, ""
+
+
+def _split_csv(value: str) -> list[str]:
+    return [x.strip() for x in str(value or "").split(",") if x.strip()]
 
 # --- Create MCP server instance / 创建 MCP 服务器实例 ---
 # host="0.0.0.0" so Docker container's SSE is externally reachable
@@ -569,7 +619,7 @@ async def dream_hook(request):
 
 # =============================================================
 # Internal helper: merge-or-create
-# 内部辅助：检查是否可合并，可以则合并，否则新建
+# 内部辅助：检查疑似重复，但永远新建
 # Shared by hold and grow to avoid duplicate logic
 # hold 和 grow 共用，避免重复逻辑
 # =============================================================
@@ -582,13 +632,14 @@ async def _merge_or_create(
     arousal: float,
     name: str = "",
     ownership: dict | None = None,
-) -> tuple[str, bool]:
+) -> tuple[str, bool, str]:
     """
-    Check if a similar bucket exists for merging; merge if so, create if not.
-    Returns (bucket_id_or_name, is_merged).
-    检查是否有相似桶可合并，有则合并，无则新建。
-    返回 (桶ID或名称, 是否合并)。
+    Create a new bucket. Similar existing buckets are only logged as hints.
+    Returns (bucket_id, False, duplicate_hint).
+    新建记忆桶。相似旧桶只作为疑似重复提示写日志，不自动合并。
+    返回 (bucket_id, False, 疑似重复提示)。
     """
+    duplicate_hint = ""
     try:
         existing = await bucket_mgr.search(content, limit=1, domain_filter=domain or None)
         if ownership:
@@ -598,33 +649,13 @@ async def _merge_or_create(
         existing = []
 
     if existing and existing[0].get("score", 0) > config.get("merge_threshold", 75):
-        bucket = existing[0]
-        # --- Never merge into pinned/protected/anchor buckets ---
-        # --- 不合并到钉选/保护/锚点桶 ---
-        if not (bucket["metadata"].get("pinned") or bucket["metadata"].get("protected") or bucket["metadata"].get("anchor")):
-            try:
-                merged = await dehydrator.merge(bucket["content"], content)
-                old_v = bucket["metadata"].get("valence", 0.5)
-                old_a = bucket["metadata"].get("arousal", 0.3)
-                merged_valence = round((old_v + valence) / 2, 2)
-                merged_arousal = round((old_a + arousal) / 2, 2)
-                await bucket_mgr.update(
-                    bucket["id"],
-                    content=merged,
-                    tags=list(set(bucket["metadata"].get("tags", []) + tags)),
-                    importance=max(bucket["metadata"].get("importance", 5), importance),
-                    domain=list(set(bucket["metadata"].get("domain", []) + domain)),
-                    valence=merged_valence,
-                    arousal=merged_arousal,
-                )
-                # --- Update embedding after merge ---
-                try:
-                    await embedding_engine.generate_and_store(bucket["id"], merged)
-                except Exception:
-                    pass
-                return bucket["metadata"].get("name", bucket["id"]), True
-            except Exception as e:
-                logger.warning(f"Merge failed, creating new / 合并失败，新建: {e}")
+        candidate = existing[0]
+        can_merge = _can_auto_merge_into(candidate, ownership or {})
+        duplicate_hint = candidate.get("id") or candidate.get("metadata", {}).get("name", "")
+        logger.info(
+            "Auto-merge disabled; creating new bucket. "
+            f"similar={duplicate_hint} score={candidate.get('score', 0)} merge_safe={can_merge}"
+        )
 
     bucket_id = await bucket_mgr.create(
         content=content,
@@ -641,7 +672,10 @@ async def _merge_or_create(
         await embedding_engine.generate_and_store(bucket_id, content)
     except Exception:
         pass
-    return bucket_id, False
+    if duplicate_hint:
+        logger.info(f"Created {bucket_id}; suspected duplicate was {duplicate_hint}")
+    hint = f"可能与已有 bucket {duplicate_hint} 相关，未自动合并。" if duplicate_hint else ""
+    return bucket_id, False, hint
 
 
 # =============================================================
@@ -1061,7 +1095,7 @@ async def hold(
         return f"📌钉选→{bucket_id} {','.join(domain)}"
 
     # --- Step 2: merge or create / 合并或新建 ---
-    result_name, is_merged = await _merge_or_create(
+    result_name, is_merged, duplicate_hint = await _merge_or_create(
         content=content,
         tags=all_tags,
         importance=importance,
@@ -1073,7 +1107,8 @@ async def hold(
     )
 
     action = "合并→" if is_merged else "新建→"
-    return f"{action}{result_name} {','.join(domain)}"
+    hint_line = f"\n{duplicate_hint}" if duplicate_hint else ""
+    return f"{action}{result_name} {','.join(domain)}{hint_line}"
 
 
 # =============================================================
@@ -1118,7 +1153,7 @@ async def grow(
                 "domain": ["未分类"], "valence": 0.5, "arousal": 0.3,
                 "tags": [], "suggested_name": "",
             }
-        result_name, is_merged = await _merge_or_create(
+        result_name, is_merged, duplicate_hint = await _merge_or_create(
             content=content.strip(),
             tags=analysis.get("tags", []),
             importance=analysis.get("importance", 5) if isinstance(analysis.get("importance"), int) else 5,
@@ -1129,7 +1164,8 @@ async def grow(
             ownership=owner,
         )
         action = "合并" if is_merged else "新建"
-        return f"{action} → {result_name} | {','.join(analysis.get('domain', []))} V{analysis.get('valence', 0.5):.1f}/A{analysis.get('arousal', 0.3):.1f}"
+        hint_line = f"\n{duplicate_hint}" if duplicate_hint else ""
+        return f"{action} → {result_name} | {','.join(analysis.get('domain', []))} V{analysis.get('valence', 0.5):.1f}/A{analysis.get('arousal', 0.3):.1f}{hint_line}"
 
     # --- Step 1: let API split and organize / 让 API 拆分整理 ---
     try:
@@ -1149,7 +1185,7 @@ async def grow(
     # --- 逐条合并或新建（单条失败不影响其他）---
     for item in items:
         try:
-            result_name, is_merged = await _merge_or_create(
+            result_name, is_merged, duplicate_hint = await _merge_or_create(
                 content=item["content"],
                 tags=item.get("tags", []),
                 importance=item.get("importance", 5),
@@ -1164,7 +1200,8 @@ async def grow(
                 results.append(f"📎{result_name}")
                 merged += 1
             else:
-                results.append(f"📝{item.get('name', result_name)}")
+                suffix = f"（{duplicate_hint}）" if duplicate_hint else ""
+                results.append(f"📝{item.get('name', result_name)}{suffix}")
                 created += 1
         except Exception as e:
             logger.warning(
@@ -1273,6 +1310,237 @@ async def trace(
         else:
             changed += " → 已取消隐藏，重新参与浮现"
     return f"已修改记忆桶 {bucket_id}: {changed}"
+
+
+def _collect_common_bucket_updates(
+    name: str = "",
+    content: str = "",
+    domain: str = "",
+    tags: str = "",
+    importance: int = -1,
+    valence: float = -1,
+    arousal: float = -1,
+    resolved: int = -1,
+    pinned: int = -1,
+    digested: int = -1,
+    notes: str = "",
+) -> dict:
+    updates = {}
+    if name:
+        updates["name"] = name
+    if content:
+        updates["content"] = content
+    if domain:
+        updates["domain"] = _split_csv(domain)
+    if tags:
+        updates["tags"] = _split_csv(tags)
+    if 1 <= importance <= 10:
+        updates["importance"] = importance
+    if 0 <= valence <= 1:
+        updates["valence"] = valence
+    if 0 <= arousal <= 1:
+        updates["arousal"] = arousal
+    if resolved in (0, 1):
+        updates["resolved"] = bool(resolved)
+    if pinned in (0, 1):
+        updates["pinned"] = bool(pinned)
+        if pinned == 1:
+            updates["importance"] = 10
+    if digested in (0, 1):
+        updates["digested"] = bool(digested)
+    if notes:
+        updates["notes"] = notes
+    return updates
+
+
+async def _apply_bucket_update(bucket_id: str, updates: dict) -> str:
+    if not updates:
+        return "没有任何字段需要修改。"
+    ok = await bucket_mgr.update(bucket_id, **updates)
+    if not ok:
+        return f"修改失败: {bucket_id}"
+    if "content" in updates:
+        try:
+            await embedding_engine.generate_and_store(bucket_id, updates["content"])
+        except Exception:
+            pass
+    changed = ", ".join(k for k in updates.keys() if k != "content")
+    if "content" in updates:
+        changed += (", content" if changed else "content")
+    return f"已修改 {bucket_id}: {changed}"
+
+
+@mcp.tool()
+async def bucket_update(
+    bucket_id: str,
+    name: str = "",
+    content: str = "",
+    domain: str = "",
+    tags: str = "",
+    importance: int = -1,
+    valence: float = -1,
+    arousal: float = -1,
+    resolved: int = -1,
+    pinned: int = -1,
+    digested: int = -1,
+    notes: str = "",
+    agent_id: str = "",
+    relationship_line: str = "",
+) -> str:
+    """明确更新普通记忆桶。I/letter/anchor 请用各自专用工具。只传需要修改的字段。"""
+    owner_ctx = _owner_context(agent_id, relationship_line)
+    bucket = await bucket_mgr.get(bucket_id)
+    ok, msg = _editable_bucket(bucket, owner_ctx)
+    if not ok:
+        return msg
+    meta = bucket.get("metadata", {})
+    if meta.get("anchor"):
+        return "这是 anchor 桶，请使用 anchor_update。"
+    if _bucket_type(bucket) in ("i", "letter"):
+        return f"这是 {_bucket_type(bucket)} 类型，请使用专用 update 工具。"
+    updates = _collect_common_bucket_updates(name, content, domain, tags, importance, valence, arousal, resolved, pinned, digested, notes)
+    return await _apply_bucket_update(bucket_id, updates)
+
+
+@mcp.tool()
+async def bucket_delete(bucket_id: str, agent_id: str = "", relationship_line: str = "") -> str:
+    """明确删除普通记忆桶。I/letter/anchor 请用各自专用删除工具。"""
+    owner_ctx = _owner_context(agent_id, relationship_line)
+    bucket = await bucket_mgr.get(bucket_id)
+    ok, msg = _editable_bucket(bucket, owner_ctx)
+    if not ok:
+        return msg
+    meta = bucket.get("metadata", {})
+    if meta.get("anchor"):
+        return "这是 anchor 桶，请使用 anchor_delete。"
+    if _bucket_type(bucket) in ("i", "letter"):
+        return f"这是 {_bucket_type(bucket)} 类型，请使用专用 delete 工具。"
+    success = await bucket_mgr.delete(bucket_id)
+    if success:
+        embedding_engine.delete_embedding(bucket_id)
+    return f"已删除记忆桶: {bucket_id}" if success else f"删除失败: {bucket_id}"
+
+
+@mcp.tool()
+async def i_update(
+    bucket_id: str,
+    title: str = "",
+    content: str = "",
+    aspect: str = "",
+    agent_id: str = "",
+    relationship_line: str = "",
+) -> str:
+    """更新一条 I 自我认知。可改标题、内容、aspect。"""
+    owner_ctx = _owner_context(agent_id, relationship_line)
+    bucket = await bucket_mgr.get(bucket_id)
+    ok, msg = _editable_bucket(bucket, owner_ctx, "i")
+    if not ok:
+        return msg
+    updates = {}
+    if title:
+        updates["name"] = title
+    if content:
+        updates["content"] = content
+    if aspect:
+        meta = bucket.get("metadata", {})
+        tags = [t for t in (meta.get("tags") or []) if not str(t).startswith("aspect:")]
+        tags.append(f"aspect:{aspect.strip()}")
+        updates["tags"] = tags
+    return await _apply_bucket_update(bucket_id, updates)
+
+
+@mcp.tool()
+async def i_delete(bucket_id: str, agent_id: str = "", relationship_line: str = "") -> str:
+    """删除一条 I 自我认知。"""
+    owner_ctx = _owner_context(agent_id, relationship_line)
+    bucket = await bucket_mgr.get(bucket_id)
+    ok, msg = _editable_bucket(bucket, owner_ctx, "i")
+    if not ok:
+        return msg
+    success = await bucket_mgr.delete(bucket_id)
+    if success:
+        embedding_engine.delete_embedding(bucket_id)
+    return f"已删除 I: {bucket_id}" if success else f"删除失败: {bucket_id}"
+
+
+@mcp.tool()
+async def letter_update(
+    bucket_id: str,
+    title: str = "",
+    content: str = "",
+    date: str = "",
+    agent_id: str = "",
+    relationship_line: str = "",
+) -> str:
+    """更新一封信。可改标题、内容、日期。"""
+    owner_ctx = _owner_context(agent_id, relationship_line)
+    bucket = await bucket_mgr.get(bucket_id)
+    ok, msg = _editable_bucket(bucket, owner_ctx, "letter")
+    if not ok:
+        return msg
+    updates = {}
+    if title:
+        updates["title"] = title[:120]
+        updates["name"] = title[:60]
+    if content:
+        updates["content"] = content
+    if date:
+        updates["letter_date"] = date
+    return await _apply_bucket_update(bucket_id, updates)
+
+
+@mcp.tool()
+async def letter_delete(bucket_id: str, agent_id: str = "", relationship_line: str = "") -> str:
+    """删除一封信。"""
+    owner_ctx = _owner_context(agent_id, relationship_line)
+    bucket = await bucket_mgr.get(bucket_id)
+    ok, msg = _editable_bucket(bucket, owner_ctx, "letter")
+    if not ok:
+        return msg
+    success = await bucket_mgr.delete(bucket_id)
+    if success:
+        embedding_engine.delete_embedding(bucket_id)
+    return f"已删除 letter: {bucket_id}" if success else f"删除失败: {bucket_id}"
+
+
+@mcp.tool()
+async def anchor_update(
+    bucket_id: str,
+    name: str = "",
+    content: str = "",
+    domain: str = "",
+    tags: str = "",
+    importance: int = -1,
+    notes: str = "",
+    agent_id: str = "",
+    relationship_line: str = "",
+) -> str:
+    """更新 anchor 桶。只能操作当前脑区可见且 anchor=true 的桶。"""
+    owner_ctx = _owner_context(agent_id, relationship_line)
+    bucket = await bucket_mgr.get(bucket_id)
+    ok, msg = _editable_bucket(bucket, owner_ctx)
+    if not ok:
+        return msg
+    if not bucket.get("metadata", {}).get("anchor"):
+        return "这条记忆不是 anchor。"
+    updates = _collect_common_bucket_updates(name=name, content=content, domain=domain, tags=tags, importance=importance, notes=notes)
+    return await _apply_bucket_update(bucket_id, updates)
+
+
+@mcp.tool()
+async def anchor_delete(bucket_id: str, agent_id: str = "", relationship_line: str = "") -> str:
+    """删除 anchor 桶。若只想取消 anchor，请用 release。"""
+    owner_ctx = _owner_context(agent_id, relationship_line)
+    bucket = await bucket_mgr.get(bucket_id)
+    ok, msg = _editable_bucket(bucket, owner_ctx)
+    if not ok:
+        return msg
+    if not bucket.get("metadata", {}).get("anchor"):
+        return "这条记忆不是 anchor。"
+    success = await bucket_mgr.delete(bucket_id)
+    if success:
+        embedding_engine.delete_embedding(bucket_id)
+    return f"已删除 anchor: {bucket_id}" if success else f"删除失败: {bucket_id}"
 
 
 # =============================================================
@@ -1786,6 +2054,7 @@ async def api_buckets(request):
                 "migration_status": meta.get("migration_status", ""),
                 "from_agent": meta.get("from_agent", ""),
                 "to_agent": meta.get("to_agent", ""),
+                "notes": meta.get("notes", ""),
             })
         result.sort(key=lambda x: x["score"], reverse=True)
         return JSONResponse(result)
@@ -1812,6 +2081,17 @@ async def api_bucket_detail(request):
     })
 
 
+API_BUCKET_PATCH_FIELDS = {
+    "name", "content", "tags", "importance", "domain", "valence", "arousal",
+    "resolved", "pinned", "digested", "model_valence", "dont_surface",
+    "anchor", "source_tool", "_pre_anchor_source_tool", "author", "user_name",
+    "title", "letter_date",
+    "agent_id", "relationship_line", "scope", "visibility",
+    "source_module", "source_agent_model", "legacy_import", "migration_status",
+    "notes", "from_agent", "to_agent",
+}
+
+
 @mcp.custom_route("/api/bucket/{bucket_id}", methods=["PATCH"])
 async def api_bucket_update(request):
     """Update bucket fields."""
@@ -1823,10 +2103,35 @@ async def api_bucket_update(request):
         body = await request.json()
     except Exception:
         return JSONResponse({"error": "invalid JSON"}, status_code=400)
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "request body must be an object"}, status_code=400)
+    unknown = sorted(k for k in body.keys() if k not in API_BUCKET_PATCH_FIELDS)
+    if unknown:
+        return JSONResponse({"error": "unsupported fields", "fields": unknown}, status_code=400)
+    if not body:
+        return JSONResponse({"error": "no fields to update"}, status_code=400)
+    before = await bucket_mgr.get(bucket_id)
+    if not before:
+        return JSONResponse({"error": "not found"}, status_code=404)
     ok = await bucket_mgr.update(bucket_id, **body)
-    if ok:
-        return JSONResponse({"ok": True})
-    return JSONResponse({"error": "not found or update failed"}, status_code=404)
+    if not ok:
+        return JSONResponse({"error": "update failed"}, status_code=500)
+    if "content" in body:
+        try:
+            await embedding_engine.generate_and_store(bucket_id, body["content"])
+        except Exception:
+            pass
+    updated = await bucket_mgr.get(bucket_id)
+    if not updated:
+        return JSONResponse({"error": "updated bucket could not be reloaded"}, status_code=500)
+    meta = updated.get("metadata", {})
+    return JSONResponse({
+        "ok": True,
+        "id": updated["id"],
+        "metadata": meta,
+        "content": strip_wikilinks(updated.get("content", "")),
+        "score": decay_engine.calculate_score(meta),
+    })
 
 
 @mcp.custom_route("/api/bucket/{bucket_id}", methods=["DELETE"])

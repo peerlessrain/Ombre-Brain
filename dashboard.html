@@ -1739,6 +1739,14 @@ document.getElementById('e-scope').onchange=e=>{
   const visibility=document.getElementById('e-visibility');
   if(visibility)visibility.value=suggestedVisibilityForScopeChoice(e.target.value);
 };
+async function readApiError(r,fallback){
+  try{
+    const d=await r.json();
+    if(d&&d.error)return d.fields?d.error+': '+d.fields.join(', '):d.error;
+    if(d&&d.detail)return d.detail;
+  }catch{}
+  return fallback;
+}
 document.getElementById('btn-save').onclick=async()=>{
   if(!currentBucket)return;
   const id=bId(currentBucket);
@@ -1748,7 +1756,7 @@ document.getElementById('btn-save').onclick=async()=>{
   try{
     const r=await authFetch('/api/bucket/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(up)});
     if(r&&r.ok){toast('已保存 ✓');closeModal();await reload();}
-    else toast('保存失败，后端可能不支持此操作');
+    else toast('保存失败：'+await readApiError(r,'后端未接受这次修改'));
   }catch{toast('保存失败');}
 };
 document.getElementById('btn-save-owner').onclick=async()=>{
@@ -1767,7 +1775,7 @@ document.getElementById('btn-save-owner').onclick=async()=>{
   try{
     const r=await authFetch('/api/bucket/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(up)});
     if(r&&r.ok){toast('标记已保存 ✓');closeModal();await reload();}
-    else toast('标记保存失败');
+    else toast('标记保存失败：'+await readApiError(r,'后端未接受这次标记修改'));
   }catch{toast('标记保存失败');}
 };
 document.getElementById('btn-delete').onclick=async()=>{
