@@ -1345,10 +1345,7 @@ const OWNER_TEXT={
   ayu:'阿瑜档案',
   system:'System',
   project:'项目',
-  private:'私有',
-  shared:'阿瑜档案',
-  interim:'临时',
-  early:'早期记忆'
+  shared:'阿瑜档案'
 };
 function ownerChoiceFromMeta(meta){
   const m=meta||{};
@@ -1410,22 +1407,22 @@ function ownerInfo(b){
   const f=ownerFacts(b);
   if(f.project)return{key:'project',label:OWNER_TEXT.project,cls:'project'};
   if(f.shared){
-    if(f.g)return{key:'g',label:OWNER_TEXT.g+' \u00b7 '+OWNER_TEXT.shared,cls:'g'};
-    if(f.glm)return{key:'glm',label:'GLM \u00b7 '+OWNER_TEXT.shared,cls:'glm'};
-    if(f.claude&&!f.empty)return{key:'claude',label:OWNER_TEXT.claude+' \u00b7 '+OWNER_TEXT.shared,cls:'claude'};
+    if(f.g)return{key:'g',label:OWNER_TEXT.g,cls:'g'};
+    if(f.glm)return{key:'glm',label:OWNER_TEXT.glm,cls:'glm'};
+    if(f.claude&&!f.empty)return{key:'claude',label:OWNER_TEXT.claude,cls:'claude'};
     return{key:'shared',label:OWNER_TEXT.shared,cls:'shared'};
   }
-  if(f.g)return{key:'g',label:OWNER_TEXT.g+' \u00b7 '+OWNER_TEXT.private,cls:'g'};
-  if(f.glm)return{key:'glm',label:'GLM \u00b7 '+OWNER_TEXT.interim,cls:'glm'};
-  if(f.claude)return{key:'claude',label:OWNER_TEXT.claude+' \u00b7 '+(f.empty?OWNER_TEXT.early:OWNER_TEXT.private),cls:'claude'};
+  if(f.g)return{key:'g',label:OWNER_TEXT.g,cls:'g'};
+  if(f.glm)return{key:'glm',label:OWNER_TEXT.glm,cls:'glm'};
+  if(f.claude)return{key:'claude',label:OWNER_TEXT.claude,cls:'claude'};
   if(f.ayu)return{key:'shared',label:OWNER_TEXT.shared,cls:'shared'};
-  return{key:'unknown',label:'Unknown',cls:'unknown'};
+  return{key:'claude',label:OWNER_TEXT.claude,cls:'claude'};
 }
 function ownerBadge(b){
   const o=ownerInfo(b);
   const m=bMeta(b);
   const from=m.from_agent||'', to=m.to_agent||'';
-  const title=[m.agent_id,m.relationship_line,m.scope,m.visibility].filter(Boolean).join(' / ') || OWNER_TEXT.early;
+  const title=[m.agent_id,m.relationship_line,m.scope,m.visibility].filter(Boolean).join(' / ') || OWNER_TEXT.claude;
   const route=from||to?` route ${from||'?'} -> ${to||'?'}`:'';
   return `<span class="owner-pill ${o.cls}" title="${esc(title+route)}">${esc(o.label)}</span>`;
 }
