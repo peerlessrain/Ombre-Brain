@@ -108,6 +108,22 @@ body {
 }
 .header-stats .dot { width:6px; height:6px; border-radius:50%; display:inline-block; margin-right:4px; }
 .header-right { display:flex; align-items:center; gap:12px; }
+.agent-switcher {
+  display:flex; align-items:center; gap:2px; padding:3px;
+  border:1px solid var(--border); border-radius:18px;
+  background:rgba(255,255,255,0.58); box-shadow:var(--shadow-sm);
+  backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+}
+.agent-switch-btn {
+  min-width:36px; height:26px; padding:0 9px; border:0; border-radius:14px;
+  background:transparent; color:var(--text-muted); font:500 11px var(--font-body);
+  cursor:pointer; transition:var(--transition); white-space:nowrap;
+}
+.agent-switch-btn:hover { color:var(--text); background:var(--primary-glass); }
+.agent-switch-btn.active { background:var(--card); box-shadow:0 1px 6px rgba(62,48,96,.14); }
+.agent-switch-btn.active[data-agent="claude"] { color:var(--primary-deep); }
+.agent-switch-btn.active[data-agent="g"] { color:#4F7890; }
+.agent-switch-btn.active[data-agent="glm"] { color:#A46C42; }
 .search-input {
   padding:8px 16px 8px 36px; border:1px solid var(--border);
   border-radius:20px; background:rgba(255,255,255,0.7); font-size:13px;
@@ -249,11 +265,6 @@ body {
 .owner-pill.claude, .owner-pill.legacy { background:rgba(155,142,196,0.14); color:var(--primary-deep); border-color:rgba(155,142,196,0.18); }
 .owner-pill.g { background:rgba(106,142,174,0.14); color:#4F7890; border-color:rgba(106,142,174,0.2); }
 .owner-pill.glm { background:rgba(196,152,120,0.16); color:#A46C42; border-color:rgba(196,152,120,0.22); }
-.owner-pill.shared { background:rgba(106,174,126,0.14); color:#4E8B61; border-color:rgba(106,174,126,0.2); }
-.owner-pill.project { background:rgba(126,118,148,0.14); color:var(--text-secondary); border-color:rgba(126,118,148,0.2); }
-.owner-pill.unknown { background:rgba(176,168,192,0.14); color:var(--text-muted); border-color:rgba(176,168,192,0.22); }
-.owner-filter-pills { margin-top:-12px; margin-bottom:18px; }
-.owner-filter-pills .filter-pill { font-size:11px; padding:5px 12px; }
 .anchor-card {
   background:rgba(255,255,255,0.74); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
   border-radius:var(--radius-md); padding:16px 18px; border:1px solid var(--border-soft);
@@ -603,6 +614,7 @@ body {
   .memory-layout { grid-template-columns:1fr; }
   .sidebar { position:static; order:-1; }
   .header-top { flex-wrap:wrap; gap:8px; }
+  .header-right { margin-left:auto; flex-wrap:wrap; justify-content:flex-end; }
   .search-input { width:160px; }
   .search-input:focus { width:200px; }
   .modal-box { max-width:100%; border-radius:var(--radius-lg); }
@@ -613,7 +625,15 @@ body {
   .header { padding:14px 0 0; }
   .header-inner { padding:0 16px; }
   .content-area { padding:16px; }
+  .header-top { display:grid; grid-template-columns:auto minmax(0,1fr); gap:8px 12px; }
   .logo { font-size:22px; }
+  .header-stats { grid-column:2; width:auto; justify-content:flex-end; gap:8px; font-size:11px; }
+  .header-right { grid-column:1 / -1; width:100%; margin-left:0; gap:5px; flex-wrap:nowrap; }
+  .agent-switcher { flex-shrink:0; }
+  .agent-switch-btn { min-width:32px; padding:0 7px; }
+  .search-wrap { flex:1; min-width:90px; }
+  .search-input, .search-input:focus { width:100%; }
+  .logout-btn { padding:5px 9px; }
   .nav-tab { padding:8px 14px; font-size:12px; }
   .mem-card { padding:12px 14px; }
   .config-row { flex-wrap:wrap; }
@@ -795,6 +815,8 @@ body {
 [data-theme="dark"] .anchor-card { background:rgba(42,38,64,0.75); }
 [data-theme="dark"] .config-section { background:rgba(42,38,64,0.7); }
 [data-theme="dark"] .filter-pill { background:rgba(42,38,64,0.7); }
+[data-theme="dark"] .agent-switcher { background:rgba(42,38,64,0.72); }
+[data-theme="dark"] .agent-switch-btn.active { background:#3A3550; box-shadow:0 1px 7px rgba(0,0,0,.3); }
 [data-theme="dark"] .search-wrap::before { color:#D8D4E8; opacity:1; }
 [data-theme="dark"] .search-wrap:focus-within::before, [data-theme="dark"] .search-wrap:hover::before { color:#FFFFFF; }
 [data-theme="dark"] .cal-day.lv0 { background:var(--bg); }
@@ -885,6 +907,11 @@ body {
         <span><span class="dot" style="background:#E8C47E"></span><span id="s-pinned">0</span> 钉选</span>
       </div>
       <div class="header-right">
+        <div class="agent-switcher" id="agent-switcher" role="group" aria-label="当前 AI">
+          <button class="agent-switch-btn active" type="button" data-agent="claude" aria-pressed="true">小克</button>
+          <button class="agent-switch-btn" type="button" data-agent="g" aria-pressed="false">小G</button>
+          <button class="agent-switch-btn" type="button" data-agent="glm" aria-pressed="false">GLM</button>
+        </div>
         <div class="search-wrap">
           <input class="search-input" type="text" id="search-input" placeholder="搜索记忆…">
         </div>
@@ -922,14 +949,6 @@ body {
           <button class="view-toggle-btn active" data-view="list" onclick="setViewMode('list')">☰</button>
           <button class="view-toggle-btn" data-view="grid" onclick="setViewMode('grid')">⊞</button>
         </div>
-      </div>
-      <div class="filter-pills owner-filter-pills" id="owner-filter-pills">
-        <div class="filter-pill active" data-owner="all">全部脑区</div>
-        <div class="filter-pill" data-owner="claude">小克</div>
-        <div class="filter-pill" data-owner="g">小G</div>
-        <div class="filter-pill" data-owner="glm">GLM</div>
-        <div class="filter-pill" data-owner="shared">阿瑜档案</div>
-        <div class="filter-pill" data-owner="project">项目</div>
       </div>
       <div id="mem-feed">
         <div class="loading-wrap"><div class="spinner"></div><div>正在唤醒记忆…</div></div>
@@ -1222,9 +1241,8 @@ body {
           <div class="modal-label">编辑标记</div>
           <div class="edit-help">用中文调整这条记忆属于谁、是什么内容、谁能看见。这里只改标记，不修改记忆正文。</div>
           <div class="edit-grid">
-            <div class="edit-field"><label class="edit-lbl">来源脑区</label><select class="edit-select" id="e-owner"><option value="k">小克</option><option value="g">小G</option><option value="m">GLM</option><option value="a">阿瑜</option><option value="sys">项目/系统</option></select></div>
-            <div class="edit-field"><label class="edit-lbl">内容分类</label><select class="edit-select" id="e-scope"><option value="personal">个人记忆</option><option value="ayu">阿瑜档案</option><option value="project">项目</option></select></div>
-            <div class="edit-field"><label class="edit-lbl">可见范围</label><select class="edit-select" id="e-visibility"><option value="line">同关系可见</option><option value="self">仅本人可见</option><option value="public">公共可见</option><option value="manual">手动可见</option><option value="archive">已归档</option></select></div>
+            <div class="edit-field"><label class="edit-lbl">来源脑区</label><select class="edit-select" id="e-owner"><option value="k">小克</option><option value="g">小G</option><option value="m">GLM</option></select></div>
+            <div class="edit-field"><label class="edit-lbl">可见范围</label><select class="edit-select" id="e-visibility"><option value="line">同关系可见</option><option value="self">仅本人可见</option><option value="manual">手动可见</option><option value="archive">已归档</option></select></div>
           </div>
           <div class="edit-field"><label class="edit-lbl">备注</label><textarea class="edit-txt" id="e-notes" placeholder="可选。记录为什么这样标记，不会改变记忆正文。" style="min-height:54px"></textarea></div>
         </div>
@@ -1313,7 +1331,13 @@ document.querySelectorAll('.nav-tab').forEach(tab=>{
 /* ═══════════════════════════════════════
    Memory List
    ═══════════════════════════════════════ */
-let allBuckets=[], currentFilter='all', ownerFilter='all', searchQ='', calYear, calMonth, currentBucket=null, viewMode='list', calDateFilter='';
+const DASHBOARD_AGENTS=['claude','g','glm'];
+let savedDashboardAgent='claude';
+try{
+  const saved=localStorage.getItem('ob-dashboard-agent');
+  if(DASHBOARD_AGENTS.includes(saved))savedDashboardAgent=saved;
+}catch{}
+let allBuckets=[], currentFilter='all', dashboardAgent=savedDashboardAgent, searchQ='', calYear, calMonth, currentBucket=null, viewMode='list', calDateFilter='';
 
 async function fetchBuckets(){
   try{
@@ -1340,11 +1364,7 @@ function bMeta(b){return b.metadata||b||{};}
 const OWNER_TEXT={
   claude:'小克',
   g:'小G',
-  glm:'GLM',
-  ayu:'阿瑜档案',
-  system:'System',
-  project:'项目',
-  shared:'阿瑜档案'
+  glm:'GLM'
 };
 function ownerChoiceFromMeta(meta){
   const m=meta||{};
@@ -1352,69 +1372,39 @@ function ownerChoiceFromMeta(meta){
   const line=(m.relationship_line||'').toLowerCase();
   if(line==='g_line'||agent==='g')return'g';
   if(line==='glm_interim'||agent==='glm')return'm';
-  if((line==='shared'&&agent==='ayu')||agent==='ayu')return'a';
-  if(line==='project'||agent==='system')return'sys';
   return'k';
 }
 function ownerMetaFromChoice(choice){
   const map={
     k:{agent_id:'claude',relationship_line:'claude_line'},
     g:{agent_id:'g',relationship_line:'g_line'},
-    m:{agent_id:'glm',relationship_line:'glm_interim'},
-    a:{agent_id:'ayu',relationship_line:'shared'},
-    sys:{agent_id:'system',relationship_line:'project'}
+    m:{agent_id:'glm',relationship_line:'glm_interim'}
   };
   return map[choice]||map.k;
 }
-function scopeChoiceFromMeta(scope){
-  if(scope==='shared_about_ayu')return'ayu';
-  if(scope==='project')return'project';
-  return'personal';
-}
-function scopeMetaFromChoice(choice){
-  const map={personal:'agent_private',ayu:'shared_about_ayu',project:'project'};
-  return map[choice]||map.personal;
-}
 function visibilityChoiceFromMeta(visibility){
-  const map={same_line:'line',same_agent:'self',shared:'public',manual_only:'manual',archived:'archive'};
+  const map={same_line:'line',same_agent:'self',manual_only:'manual',archived:'archive'};
   return map[visibility]||'';
 }
 function visibilityMetaFromChoice(choice){
-  const map={line:'same_line',self:'same_agent',public:'shared',manual:'manual_only',archive:'archived'};
+  const map={line:'same_line',self:'same_agent',manual:'manual_only',archive:'archived'};
   return map[choice]||map.line;
-}
-function suggestedVisibilityForScopeChoice(scopeChoice){
-  if(scopeChoice==='ayu')return'public';
-  return'line';
 }
 function ownerFacts(b){
   const m=bMeta(b);
   const agent=(m.agent_id||'').toLowerCase();
   const line=(m.relationship_line||'').toLowerCase();
-  const scope=(m.scope||'').toLowerCase();
-  const visibility=(m.visibility||'').toLowerCase();
-  const empty=!agent&&!line&&!scope&&!visibility;
-  const shared=scope==='shared_about_ayu'||line==='shared'||visibility==='shared';
-  const project=scope==='project'||line==='project';
+  const empty=!agent&&!line;
   const glm=line==='glm_interim'||agent==='glm';
   const g=line==='g_line'||agent==='g';
   const claude=line==='claude_line'||agent==='claude'||empty;
-  const ayu=agent==='ayu';
-  return{agent,line,scope,visibility,empty,shared,project,glm,g,claude,ayu};
+  return{agent,line,empty,glm,g,claude};
 }
 function ownerInfo(b){
   const f=ownerFacts(b);
-  if(f.project)return{key:'project',label:OWNER_TEXT.project,cls:'project'};
-  if(f.shared){
-    if(f.g)return{key:'g',label:OWNER_TEXT.g,cls:'g'};
-    if(f.glm)return{key:'glm',label:OWNER_TEXT.glm,cls:'glm'};
-    if(f.claude&&!f.empty)return{key:'claude',label:OWNER_TEXT.claude,cls:'claude'};
-    return{key:'shared',label:OWNER_TEXT.shared,cls:'shared'};
-  }
   if(f.g)return{key:'g',label:OWNER_TEXT.g,cls:'g'};
   if(f.glm)return{key:'glm',label:OWNER_TEXT.glm,cls:'glm'};
   if(f.claude)return{key:'claude',label:OWNER_TEXT.claude,cls:'claude'};
-  if(f.ayu)return{key:'shared',label:OWNER_TEXT.shared,cls:'shared'};
   return{key:'claude',label:OWNER_TEXT.claude,cls:'claude'};
 }
 function ownerBadge(b){
@@ -1425,15 +1415,35 @@ function ownerBadge(b){
   const route=from||to?` route ${from||'?'} -> ${to||'?'}`:'';
   return `<span class="owner-pill ${o.cls}" title="${esc(title+route)}">${esc(o.label)}</span>`;
 }
-function ownerMatches(b,f){
-  if(f==='all')return true;
-  const facts=ownerFacts(b);
-  if(f==='shared')return facts.shared;
-  if(f==='project')return facts.project;
-  if(f==='claude')return facts.claude||facts.shared;
-  if(f==='g')return facts.g||facts.shared;
-  if(f==='glm')return facts.glm||facts.shared;
-  return ownerInfo(b).key===f;
+function bucketMatchesDashboardAgent(b,agent=dashboardAgent){
+  const meta=bMeta(b);
+  const bucketAgent=(meta.agent_id||'').toLowerCase();
+  const line=(meta.relationship_line||'').toLowerCase();
+  if(DASHBOARD_AGENTS.includes(bucketAgent))return bucketAgent===agent;
+  if(line==='claude_line')return agent==='claude';
+  if(line==='g_line')return agent==='g';
+  if(line==='glm_interim')return agent==='glm';
+  return !bucketAgent&&!line&&agent==='claude';
+}
+function dashboardAgentBuckets(buckets){return (buckets||[]).filter(b=>bucketMatchesDashboardAgent(b));}
+function syncAgentSwitcher(){
+  document.querySelectorAll('#agent-switcher .agent-switch-btn').forEach(btn=>{
+    const active=btn.dataset.agent===dashboardAgent;
+    btn.classList.toggle('active',active);
+    btn.setAttribute('aria-pressed',active?'true':'false');
+  });
+}
+function setDashboardAgent(agent){
+  if(!DASHBOARD_AGENTS.includes(agent)||agent===dashboardAgent)return;
+  dashboardAgent=agent;
+  try{localStorage.setItem('ob-dashboard-agent',agent);}catch{}
+  syncAgentSwitcher();
+  renderBucketSurfaces();
+  const activeTab=document.querySelector('.nav-tab.active')?.dataset.tab;
+  if(activeTab==='network')loadNetwork();
+  if(activeTab==='letters')loadLetters();
+  if(activeTab==='breath')runBreathDebug();
+  if(document.getElementById('i-side-panel').classList.contains('open'))renderISelf();
 }
 /* Shanghai timezone helpers */
 function shanghaiParts(d){
@@ -1457,14 +1467,13 @@ function formatDateLabel(d){
 }
 
 function filterBuckets(bs){
-  let r=bs;
+  let r=dashboardAgentBuckets(bs);
   if(currentFilter==='pinned')r=r.filter(bPinned);
   else if(currentFilter==='feel')r=r.filter(bFeel);
   else if(currentFilter==='recent')r=r.filter(b=>isRecent7(bDate(b)));
   else if(currentFilter==='important')r=r.filter(b=>bImp(b)>=7);
   else if(currentFilter==='resolved')r=r.filter(bResolved);
   else if(currentFilter==='digested')r=r.filter(bDigested);
-  r=r.filter(b=>ownerMatches(b,ownerFilter));
   if(searchQ){
     const q=searchQ.toLowerCase();
     r=r.filter(b=>(bName(b)+' '+bPreview(b)+' '+bTags(b).join(' ')+' '+bDomains(b).join(' ')).toLowerCase().includes(q));
@@ -1604,13 +1613,9 @@ document.getElementById('filter-pills').onclick=e=>{
   currentFilter=pill.dataset.f;
   renderFeed(allBuckets);
 };
-document.getElementById('owner-filter-pills').onclick=e=>{
-  const pill=e.target.closest('.filter-pill');
-  if(!pill)return;
-  document.querySelectorAll('#owner-filter-pills .filter-pill').forEach(p=>p.classList.remove('active'));
-  pill.classList.add('active');
-  ownerFilter=pill.dataset.owner||'all';
-  renderFeed(allBuckets);
+document.getElementById('agent-switcher').onclick=e=>{
+  const btn=e.target.closest('.agent-switch-btn');
+  if(btn)setDashboardAgent(btn.dataset.agent);
 };
 
 /* ── Search ── */
@@ -1633,7 +1638,7 @@ function renderCal(y,m){
   const grid=document.getElementById('cal-grid'),label=document.getElementById('cal-month');
   label.textContent=`${y}年${m+1}月`;
   const dc={};
-  allBuckets.forEach(b=>{
+  dashboardAgentBuckets(allBuckets).forEach(b=>{
     const d=bDate(b), p=shanghaiParts(d);
     if(p.y===y&&p.mo===m+1)dc[p.day]=(dc[p.day]||0)+1;
   });
@@ -1664,6 +1669,7 @@ function scrollToDate(y,m,d){
 
 /* ── Stats ── */
 function updateStats(bs){
+  bs=dashboardAgentBuckets(bs);
   document.getElementById('s-total').textContent=bs.length;
   document.getElementById('s-feel').textContent=bs.filter(bFeel).length;
   document.getElementById('s-pinned').textContent=bs.filter(bPinned).length;
@@ -1708,7 +1714,7 @@ async function openDetail(id){
   document.getElementById('m-tags').innerHTML=domains.filter(Boolean).map(d=>`<span class="modal-tag" style="background:rgba(155,142,196,0.15);cursor:pointer" onclick="closeModal();document.getElementById('search-input').value=this.textContent;searchQ=this.textContent;renderFeed(allBuckets);">${esc(d)}</span>`).concat(tags.map(t=>`<span class="modal-tag" style="cursor:pointer" onclick="closeModal();document.getElementById('search-input').value=this.textContent.slice(1);searchQ=this.textContent.slice(1);renderFeed(allBuckets);">#${esc(t)}</span>`)).join('');
   // Same-day memories
   const sameDayKey=dateKey(d);
-  const sameDay=allBuckets.filter(sb=>dateKey(bDate(sb))===sameDayKey&&bId(sb)!==bId(b));
+  const sameDay=dashboardAgentBuckets(allBuckets).filter(sb=>dateKey(bDate(sb))===sameDayKey&&bId(sb)!==bId(b));
   const sdDiv=document.getElementById('m-same-day'),sdList=document.getElementById('m-same-day-list');
   if(sameDay.length){
     sdDiv.style.display='';
@@ -1722,19 +1728,13 @@ async function openDetail(id){
   document.getElementById('e-tags').value=tags.join(', ');
   document.getElementById('e-domain').value=domains.filter(Boolean).join(', ');
   document.getElementById('e-owner').value=ownerChoiceFromMeta(meta);
-  const scopeChoice=scopeChoiceFromMeta(meta.scope||'agent_private');
-  document.getElementById('e-scope').value=scopeChoice;
-  document.getElementById('e-visibility').value=visibilityChoiceFromMeta(meta.visibility)||suggestedVisibilityForScopeChoice(scopeChoice);
+  document.getElementById('e-visibility').value=visibilityChoiceFromMeta(meta.visibility)||'line';
   document.getElementById('e-notes').value=meta.notes||'';
   document.getElementById('modal-overlay').classList.add('open');
   document.body.style.overflow='hidden';
 }
 function closeModal(){document.getElementById('modal-overlay').classList.remove('open');document.body.style.overflow='';currentBucket=null;}
 document.getElementById('modal-overlay').onclick=e=>{if(e.target===e.currentTarget)closeModal();};
-document.getElementById('e-scope').onchange=e=>{
-  const visibility=document.getElementById('e-visibility');
-  if(visibility)visibility.value=suggestedVisibilityForScopeChoice(e.target.value);
-};
 async function readApiError(r,fallback){
   try{
     const d=await r.json();
@@ -1748,7 +1748,6 @@ document.getElementById('btn-save').onclick=async()=>{
   const id=bId(currentBucket);
   const oldMeta=bMeta(currentBucket);
   const ownerMeta=ownerMetaFromChoice(document.getElementById('e-owner').value);
-  const scopeValue=scopeMetaFromChoice(document.getElementById('e-scope').value);
   const visibilityValue=visibilityMetaFromChoice(document.getElementById('e-visibility').value);
   const nextContent=document.getElementById('e-content').value.trim();
   const up={
@@ -1756,7 +1755,7 @@ document.getElementById('btn-save').onclick=async()=>{
     tags:document.getElementById('e-tags').value.split(/[,，]/).map(s=>s.trim()).filter(Boolean),
     domain:document.getElementById('e-domain').value.split(/[,，]/).map(s=>s.trim()).filter(Boolean),
     ...ownerMeta,
-    scope:scopeValue,
+    scope:'agent_private',
     visibility:visibilityValue,
     notes:document.getElementById('e-notes').value.trim()
   };
@@ -1798,12 +1797,13 @@ async function runBreathDebug(){
   try{
     const res=await authFetch(url);if(!res)return;
     const data=await res.json();
+    const scopedResults=dashboardAgentBuckets(data.results||[]);
     const w=data.weights;
     info.style.display='';
-    info.innerHTML=`<strong>权重</strong> topic=<code>${w.topic}</code> emotion=<code>${w.emotion}</code> time=<code>${w.time}</code> importance=<code>${w.importance}</code> | 阈值=<code>${data.threshold}</code> | 候选=<code>${data.total_candidates}</code> → 通过=<code>${data.passed_count}</code>`;
-    if(!data.results.length){results.innerHTML='<div class="loading-wrap">无结果</div>';return;}
+    info.innerHTML=`<strong>权重</strong> topic=<code>${w.topic}</code> emotion=<code>${w.emotion}</code> time=<code>${w.time}</code> importance=<code>${w.importance}</code> | 阈值=<code>${data.threshold}</code> | 候选=<code>${scopedResults.length}</code> → 通过=<code>${scopedResults.filter(r=>r.passed_threshold).length}</code>`;
+    if(!scopedResults.length){results.innerHTML='<div class="loading-wrap">无结果</div>';return;}
     const barC={topic:'var(--primary-deep)',emotion:'#B07AAF',time:'#C4A84E',importance:'var(--positive)'};
-    results.innerHTML=data.results.map((r,i)=>{
+    results.innerHTML=scopedResults.map((r,i)=>{
       const s=r.scores;
       const bars=Object.entries(s).map(([k,v])=>{
         const pct=Math.round(v*100);
@@ -1871,8 +1871,9 @@ function tlMakePeek(items,max){
 function renderTimeline(){
   const feed=document.getElementById('timeline-feed');
   const nav=document.getElementById('tl-month-nav');
-  if(!allBuckets.length){feed.innerHTML='<div class="loading-wrap" style="padding:40px;">还没有记忆</div>';return;}
-  const sorted=[...allBuckets].sort((a,b)=>bDate(b)-bDate(a));
+  const scopedBuckets=dashboardAgentBuckets(allBuckets);
+  if(!scopedBuckets.length){feed.innerHTML='<div class="loading-wrap" style="padding:40px;">还没有记忆</div>';document.getElementById('tl-heatstrip').innerHTML='';return;}
+  const sorted=[...scopedBuckets].sort((a,b)=>bDate(b)-bDate(a));
   if(tlMode==='month'){
     const months={};
     sorted.forEach(b=>{const d=bDate(b);const p=shanghaiParts(d);const k=p.y+'-'+String(p.mo).padStart(2,'0');
@@ -1915,7 +1916,7 @@ function renderTimeline(){
   /* 横向热力色带 */
   const strip=document.getElementById('tl-heatstrip');
   const dayCounts={};
-  allBuckets.forEach(b=>{const k=dateKey(bDate(b));dayCounts[k]=(dayCounts[k]||0)+1;});
+  scopedBuckets.forEach(b=>{const k=dateKey(bDate(b));dayCounts[k]=(dayCounts[k]||0)+1;});
   const allDays=Object.keys(dayCounts).sort();
   if(!allDays.length){strip.innerHTML='';} else {
     const maxC=Math.max(...Object.values(dayCounts));
@@ -2044,10 +2045,11 @@ async function loadNetwork(){
   canvas.height=canvas.offsetHeight*devicePixelRatio;
   ctx.scale(devicePixelRatio,devicePixelRatio);
   const W=canvas.offsetWidth,H=canvas.offsetHeight;
-  if(!allBuckets.length){ctx.fillStyle='#7E7694';ctx.font='14px DM Sans,sans-serif';ctx.textAlign='center';ctx.fillText('没有记忆桶',W/2,H/2);return;}
+  const networkBuckets=dashboardAgentBuckets(allBuckets);
+  if(!networkBuckets.length){ctx.fillStyle='#7E7694';ctx.font='14px DM Sans,sans-serif';ctx.textAlign='center';ctx.fillText('没有记忆桶',W/2,H/2);return;}
   /* 用allBuckets按domain聚类 */
   const domainMap={},nodeList=[];
-  allBuckets.forEach(b=>{
+  networkBuckets.forEach(b=>{
     const id=bId(b),name=bName(b),domains=bDomains(b),pinned=bPinned(b),feel=bFeel(b),resolved=bResolved(b),imp=bImp(b);
     const type=pinned?'permanent':feel?'feel':resolved?'archived':'dynamic';
     const node={id,name,type,pinned,resolved,imp,domains:domains.filter(Boolean)};
@@ -2341,6 +2343,7 @@ function renderBucketSurfaces(){
 
 async function init(){
   const np=shanghaiParts(new Date());calYear=np.y;calMonth=np.mo-1;
+  syncAgentSwitcher();
   allBuckets=await fetchBuckets();
   allBuckets.sort((a,b)=>bDate(b)-bDate(a));
   document.getElementById('mem-feed').innerHTML='';
@@ -2408,7 +2411,7 @@ async function loadLetters(){
     const r=await authFetch('/api/buckets',{cache:'no-store'});
     if(!r||!r.ok){grid.innerHTML='<div style="color:var(--text-muted);">加载失败</div>';return;}
     const d=await r.json();
-    _letterCache=d.filter(b=>b.type==='letter').sort((a,b)=>(b.letter_date||b.created||'').localeCompare(a.letter_date||a.created||''));
+    _letterCache=dashboardAgentBuckets(d).filter(b=>b.type==='letter').sort((a,b)=>(b.letter_date||b.created||'').localeCompare(a.letter_date||a.created||''));
     if(!_letterCache.length){grid.innerHTML='<div style="text-align:center;padding:40px;color:var(--text-muted);width:100%;">还没有信件。写一封吧。</div>';return;}
     grid.innerHTML=_letterCache.map((b,i)=>{
       const from=b.from_agent||'', to=b.to_agent||'';
@@ -2457,7 +2460,7 @@ async function loadAnchors(){
 }
 function renderAnchors(buckets){
   const el=document.getElementById('anchor-list');
-  const anchors=buckets.filter(b=>b.anchor);
+  const anchors=dashboardAgentBuckets(buckets).filter(b=>b.anchor);
     document.getElementById('anchor-count').textContent=`${anchors.length} / 24`;
     if(!anchors.length){
       el.innerHTML=`<div style="text-align:center;padding:60px 20px;">
@@ -2514,7 +2517,7 @@ function filterISelf(el,aspect){
 }
 function renderISelf(){
   const el=document.getElementById('i-panel-body');
-  let items=_iSelfCache;
+  let items=dashboardAgentBuckets(_iSelfCache);
   if(_iSelfFilter!=='all'){
     items=items.filter(b=>(b.tags||[]).some(t=>t.replace('aspect:','')===_iSelfFilter));
   }

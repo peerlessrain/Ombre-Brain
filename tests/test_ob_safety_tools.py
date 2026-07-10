@@ -86,8 +86,7 @@ async def test_glm_hold_defaults_to_interim_manual_only(tmp_path, monkeypatch):
     await server.hold(
         "GLM_CONTENT",
         agent_id="glm",
-        relationship_line="claude_line",
-        visibility="shared",
+        relationship_line="glm_interim",
     )
 
     buckets = await server.bucket_mgr.list_all(include_archive=True)
@@ -275,8 +274,8 @@ async def test_dashboard_patch_updates_ownership_metadata(tmp_path, monkeypatch)
         "_bucket_id": bid,
         "agent_id": "g",
         "relationship_line": "g_line",
-        "scope": "shared_about_ayu",
-        "visibility": "shared",
+        "scope": "agent_private",
+        "visibility": "same_line",
         "notes": "moved by test",
     }, cookies={"ombre_session": token})
 
@@ -287,6 +286,59 @@ async def test_dashboard_patch_updates_ownership_metadata(tmp_path, monkeypatch)
     meta = updated["metadata"]
     assert meta["agent_id"] == "g"
     assert meta["relationship_line"] == "g_line"
-    assert meta["scope"] == "shared_about_ayu"
-    assert meta["visibility"] == "shared"
+    assert meta["scope"] == "agent_private"
+    assert meta["visibility"] == "same_line"
     assert meta["notes"] == "moved by test"
+
+
+@pytest.mark.asyncio
+async def test_retired_ownership_values_are_rejected_without_touching_old_data(tmp_path, monkeypatch):
+    server = load_isolated_server(tmp_path, monkeypatch)
+
+    with pytest.raises(ValueError):
+        await server.bucket_mgr.create(content="shared", agent_id="ayu", relationship_line="shared")
+    with pytest.raises(ValueError):
+        await server.bucket_mgr.create(content="project", agent_id="system", relationship_line="project", scope="project")
+    with pytest.raises(ValueError):
+        await server.hold("invalid", agent_id="claude", relationship_line="claude_line", visibility="shared")
+
+    legacy_shared = {
+        "metadata": {
+            "agent_id": "ayu",
+            "relationship_line": "shared",
+            "scope": "shared_about_ayu",
+            "visibility": "shared",
+        }
+    }
+    legacy_project = {
+        "metadata": {
+            "agent_id": "system",
+            "relationship_line": "project",
+            "scope": "project",
+            "visibility": "same_line",
+        }
+    }
+    claude_ctx = server._owner_context("claude", "claude_line")
+    assert server._bucket_visible_to_context(legacy_shared, claude_ctx) is False
+    assert server._bucket_visible_to_context(legacy_project, claude_ctx) is False
+
+
+@pytest.mark.asyncio
+async def test_dashboard_patch_rejects_retired_ownership_values(tmp_path, monkeypatch):
+    server = load_isolated_server(tmp_path, monkeypatch)
+    bid = await server.bucket_mgr.create(content="keep", agent_id="claude", relationship_line="claude_line")
+    token = server._create_session()
+    request = FakeRequest({
+        "_bucket_id": bid,
+        "agent_id": "ayu",
+        "relationship_line": "shared",
+        "scope": "shared_about_ayu",
+        "visibility": "shared",
+    }, cookies={"ombre_session": token})
+
+    response = await server.api_bucket_update(request)
+
+    assert response.status_code == 400
+    unchanged = await server.bucket_mgr.get(bid)
+    assert unchanged["metadata"]["agent_id"] == "claude"
+    assert unchanged["metadata"]["relationship_line"] == "claude_line"

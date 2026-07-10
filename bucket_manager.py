@@ -54,6 +54,42 @@ OWNERSHIP_FIELDS = (
     "to_agent",
 )
 
+AGENT_RELATIONSHIP_LINES = {
+    "claude": "claude_line",
+    "g": "g_line",
+    "glm": "glm_interim",
+}
+WRITE_SCOPES = {"agent_private"}
+WRITE_VISIBILITIES = {"same_agent", "same_line", "manual_only", "archived"}
+
+
+def validate_ownership_for_write(
+    agent_id: str = "",
+    relationship_line: str = "",
+    scope: str = "",
+    visibility: str = "",
+) -> dict:
+    """Normalize active ownership values and reject retired ownership types."""
+    agent = str(agent_id or "claude").strip().lower()
+    if agent not in AGENT_RELATIONSHIP_LINES:
+        raise ValueError("agent_id 只允许 claude、g 或 glm")
+    expected_line = AGENT_RELATIONSHIP_LINES[agent]
+    line = str(relationship_line or expected_line).strip().lower()
+    if line != expected_line:
+        raise ValueError(f"relationship_line 与 {agent} 不匹配")
+    final_scope = str(scope or "agent_private").strip().lower()
+    if final_scope not in WRITE_SCOPES:
+        raise ValueError("scope 只允许 agent_private")
+    final_visibility = str(visibility or "same_line").strip().lower()
+    if final_visibility not in WRITE_VISIBILITIES:
+        raise ValueError("visibility 不支持公共或项目归属")
+    return {
+        "agent_id": agent,
+        "relationship_line": line,
+        "scope": final_scope,
+        "visibility": final_visibility,
+    }
+
 
 class BucketManager:
     """
@@ -149,6 +185,11 @@ class BucketManager:
         Importance is locked to 10 for pinned/protected buckets.
         pinned/protected 桶不参与合并与衰减，importance 强制锁定为 10。
         """
+        owner = validate_ownership_for_write(agent_id, relationship_line, scope, visibility)
+        agent_id = owner["agent_id"]
+        relationship_line = owner["relationship_line"]
+        scope = owner["scope"]
+        visibility = owner["visibility"]
         bucket_id = generate_bucket_id()
         bucket_name = sanitize_name(name) if name else bucket_id
         # feel buckets are allowed to have empty domain; others default to ["未分类"]
@@ -313,6 +354,16 @@ class BucketManager:
         except Exception as e:
             logger.warning(f"Failed to load bucket for update / 加载桶失败: {file_path}: {e}")
             return False
+
+        ownership_keys = {"agent_id", "relationship_line", "scope", "visibility"}
+        if ownership_keys.intersection(kwargs):
+            owner = validate_ownership_for_write(
+                kwargs.get("agent_id", post.get("agent_id", "")),
+                kwargs.get("relationship_line", post.get("relationship_line", "")),
+                kwargs.get("scope", post.get("scope", "")),
+                kwargs.get("visibility", post.get("visibility", "")),
+            )
+            kwargs.update(owner)
 
         # --- Pinned/protected buckets: lock importance to 10, ignore importance changes ---
         # --- 钉选/保护桶：importance 不可修改，强制保持 10 ---

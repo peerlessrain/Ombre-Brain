@@ -51,7 +51,13 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from mcp.server.fastmcp import FastMCP
 
-from bucket_manager import BucketManager
+from bucket_manager import (
+    AGENT_RELATIONSHIP_LINES,
+    WRITE_SCOPES,
+    WRITE_VISIBILITIES,
+    BucketManager,
+    validate_ownership_for_write,
+)
 from dehydrator import Dehydrator
 from decay_engine import DecayEngine
 from embedding_engine import EmbeddingEngine
@@ -103,40 +109,27 @@ dehydrator = Dehydrator(config)                      # Dehydrator / 脱水器
 decay_engine = DecayEngine(config, bucket_mgr)       # Decay engine / 衰减引擎
 import_engine = ImportEngine(config, bucket_mgr, dehydrator, embedding_engine)  # Import engine / 导入引擎
 
-VALID_AGENT_IDS = {"claude", "g", "glm", "ayu", "system", "unknown"}
-VALID_RELATIONSHIP_LINES = {"claude_line", "g_line", "glm_interim", "shared", "project"}
-VALID_SCOPES = {"agent_private", "shared_about_ayu", "project", "system_archive"}
-VALID_VISIBILITIES = {"same_agent", "same_line", "shared", "manual_only", "archived"}
-
-
-def _clean_enum(value: str, allowed: set[str], default: str) -> str:
-    value = str(value or "").strip().lower()
-    return value if value in allowed else default
+VALID_AGENT_IDS = set(AGENT_RELATIONSHIP_LINES)
+VALID_RELATIONSHIP_LINES = set(AGENT_RELATIONSHIP_LINES.values())
+VALID_SCOPES = set(WRITE_SCOPES)
+VALID_VISIBILITIES = set(WRITE_VISIBILITIES)
 
 
 def _default_line_for_agent(agent_id: str) -> str:
-    return {
-        "claude": "claude_line",
-        "g": "g_line",
-        "glm": "glm_interim",
-        "ayu": "shared",
-        "system": "shared",
-    }.get(agent_id, "claude_line")
+    return AGENT_RELATIONSHIP_LINES.get(agent_id, "claude_line")
 
 
 def _owner_context(agent_id: str = "", relationship_line: str = "") -> dict:
-    agent = _clean_enum(
-        agent_id or os.environ.get("OMBRE_AGENT_ID", "claude"),
-        VALID_AGENT_IDS,
-        "claude",
-    )
-    line = _clean_enum(
-        relationship_line or os.environ.get("OMBRE_RELATIONSHIP_LINE", "") or _default_line_for_agent(agent),
-        VALID_RELATIONSHIP_LINES,
-        _default_line_for_agent(agent),
-    )
-    if agent == "glm":
-        line = "glm_interim"
+    agent = str(agent_id or os.environ.get("OMBRE_AGENT_ID", "claude") or "claude").strip().lower()
+    if agent not in VALID_AGENT_IDS:
+        raise ValueError("agent_id 只允许 claude、g 或 glm")
+    line = str(
+        relationship_line
+        or os.environ.get("OMBRE_RELATIONSHIP_LINE", "")
+        or _default_line_for_agent(agent)
+    ).strip().lower()
+    if line != _default_line_for_agent(agent):
+        raise ValueError(f"relationship_line 与 {agent} 不匹配")
     return {"agent_id": agent, "relationship_line": line}
 
 
@@ -151,16 +144,19 @@ def _ownership_for_create(
     to_agent: str = "",
 ) -> dict:
     ctx = _owner_context(agent_id, relationship_line)
-    final_scope = _clean_enum(scope, VALID_SCOPES, "agent_private")
+    final_scope = str(scope or "agent_private").strip().lower()
     if ctx["agent_id"] == "glm" and ctx["relationship_line"] == "glm_interim":
         final_visibility = "manual_only"
     else:
-        final_visibility = _clean_enum(visibility, VALID_VISIBILITIES, "same_line")
+        final_visibility = str(visibility or "same_line").strip().lower()
+    owner = validate_ownership_for_write(
+        ctx["agent_id"],
+        ctx["relationship_line"],
+        final_scope,
+        final_visibility,
+    )
     return {
-        "agent_id": ctx["agent_id"],
-        "relationship_line": ctx["relationship_line"],
-        "scope": final_scope,
-        "visibility": final_visibility,
+        **owner,
         "source_module": source_module,
         "source_agent_model": str(source_agent_model or "").strip(),
         "legacy_import": False,
@@ -184,13 +180,11 @@ def _effective_ownership(meta: dict) -> dict:
             "legacy_import": True,
             "migration_status": meta.get("migration_status") or "unmigrated",
         }
-    agent = _clean_enum(agent, VALID_AGENT_IDS, "unknown")
-    line = _clean_enum(line, VALID_RELATIONSHIP_LINES, _default_line_for_agent(agent))
     return {
         "agent_id": agent,
-        "relationship_line": line,
-        "scope": _clean_enum(meta.get("scope", ""), VALID_SCOPES, "agent_private"),
-        "visibility": _clean_enum(meta.get("visibility", ""), VALID_VISIBILITIES, "same_line"),
+        "relationship_line": line or _default_line_for_agent(agent),
+        "scope": str(meta.get("scope") or "agent_private").strip().lower(),
+        "visibility": str(meta.get("visibility") or "same_line").strip().lower(),
         "legacy_import": bool(meta.get("legacy_import", False)),
         "migration_status": meta.get("migration_status", ""),
     }
@@ -199,10 +193,13 @@ def _effective_ownership(meta: dict) -> dict:
 def _bucket_visible_to_context(bucket: dict, ctx: dict) -> bool:
     meta = bucket.get("metadata", {}) if isinstance(bucket, dict) else {}
     owner = _effective_ownership(meta)
-    if owner["scope"] == "shared_about_ayu" or owner["relationship_line"] == "shared" or owner["visibility"] == "shared":
-        return True
-    if owner["scope"] == "project" or owner["relationship_line"] == "project":
-        return ctx.get("relationship_line") == "project" or ctx.get("agent_id") == "system"
+    if (
+        owner["agent_id"] not in VALID_AGENT_IDS
+        or owner["relationship_line"] not in VALID_RELATIONSHIP_LINES
+        or owner["scope"] not in VALID_SCOPES
+        or owner["visibility"] not in VALID_VISIBILITIES
+    ):
+        return False
     if owner["visibility"] in ("manual_only", "archived"):
         return False
     if owner["visibility"] == "same_agent":
@@ -2113,7 +2110,10 @@ async def api_bucket_update(request):
     before = await bucket_mgr.get(bucket_id)
     if not before:
         return JSONResponse({"error": "not found"}, status_code=404)
-    ok = await bucket_mgr.update(bucket_id, **body)
+    try:
+        ok = await bucket_mgr.update(bucket_id, **body)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
     if not ok:
         return JSONResponse({"error": "update failed"}, status_code=500)
     if "content" in body:
