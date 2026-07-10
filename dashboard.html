@@ -134,18 +134,13 @@ body {
 .search-input:focus { border-color:var(--primary-soft); box-shadow:var(--shadow-glow), 0 0 0 3px rgba(155,142,196,0.08); width:260px; }
 .search-input::placeholder { color:var(--text-muted); }
 .search-wrap { position:relative; }
-.search-wrap::before {
-  content:''; position:absolute; left:13px; top:50%; width:9px; height:9px;
-  border:2px solid var(--text-secondary); border-radius:50%;
-  transform:translateY(-62%); pointer-events:none; transition:var(--transition);
+.search-icon {
+  position:absolute; left:12px; top:50%; z-index:2; width:16px; height:16px;
+  color:#514A61; opacity:1; transform:translateY(-50%); pointer-events:none;
+  transition:color var(--transition); filter:none;
 }
-.search-wrap::after {
-  content:''; position:absolute; left:22px; top:57%; width:6px; height:2px;
-  border-radius:2px; background:var(--text-secondary); transform:rotate(45deg);
-  transform-origin:left center; pointer-events:none; transition:var(--transition);
-}
-.search-wrap:focus-within::before, .search-wrap:hover::before { border-color:var(--primary-deep); }
-.search-wrap:focus-within::after, .search-wrap:hover::after { background:var(--primary-deep); }
+.search-icon svg { display:block; width:100%; height:100%; stroke:currentColor; stroke-width:2.4; }
+.search-wrap:focus-within .search-icon, .search-wrap:hover .search-icon { color:#332B48; }
 .logout-btn {
   background:none; border:1px solid var(--border); color:var(--text-muted);
   border-radius:16px; padding:5px 14px; font-size:12px; cursor:pointer;
@@ -823,10 +818,8 @@ body {
 [data-theme="dark"] .filter-pill { background:rgba(42,38,64,0.7); }
 [data-theme="dark"] .agent-switcher { background:rgba(42,38,64,0.72); }
 [data-theme="dark"] .agent-switch-btn.active { background:#3A3550; box-shadow:0 1px 7px rgba(0,0,0,.3); }
-[data-theme="dark"] .search-wrap::before { border-color:#D8D4E8; }
-[data-theme="dark"] .search-wrap::after { background:#D8D4E8; }
-[data-theme="dark"] .search-wrap:focus-within::before, [data-theme="dark"] .search-wrap:hover::before { border-color:#FFFFFF; }
-[data-theme="dark"] .search-wrap:focus-within::after, [data-theme="dark"] .search-wrap:hover::after { background:#FFFFFF; }
+[data-theme="dark"] .search-icon { color:#F1EEFA; }
+[data-theme="dark"] .search-wrap:focus-within .search-icon, [data-theme="dark"] .search-wrap:hover .search-icon { color:#FFFFFF; }
 [data-theme="dark"] .cal-day.lv0 { background:var(--bg); }
 [data-theme="dark"] .cal-day.lv1 { background:#3A3060; color:#C8BBEA; }
 [data-theme="dark"] .cal-day.lv2 { background:#4A3878; color:#D8D0F0; }
@@ -921,7 +914,13 @@ body {
           <button class="agent-switch-btn" type="button" data-agent="glm" aria-pressed="false">GLM</button>
         </div>
         <div class="search-wrap">
-          <input class="search-input" type="text" id="search-input" placeholder="搜索记忆…">
+          <span class="search-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7.5"></circle><path d="m16.5 16.5 4 4"></path></svg>
+          </span>
+          <input class="search-input" type="search" id="search-input" name="ob_search_query"
+            placeholder="搜索记忆…" autocomplete="off" autocorrect="off" autocapitalize="none"
+            spellcheck="false" inputmode="search" aria-label="搜索记忆" aria-autocomplete="none"
+            data-form-type="other" data-lpignore="true" data-1p-ignore>
         </div>
         <button class="logout-btn" id="theme-toggle" onclick="toggleTheme()" style="font-size:14px;">🌙</button>
         <button class="logout-btn" onclick="doLogout()">退出</button>
