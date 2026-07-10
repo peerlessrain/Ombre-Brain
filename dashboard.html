@@ -135,11 +135,17 @@ body {
 .search-input::placeholder { color:var(--text-muted); }
 .search-wrap { position:relative; }
 .search-wrap::before {
-  content:'🔍'; position:absolute; left:12px; top:50%; transform:translateY(-50%);
-  font-size:13px; pointer-events:none;
-  color:var(--text-secondary); opacity:.95; transition:var(--transition);
+  content:''; position:absolute; left:13px; top:50%; width:9px; height:9px;
+  border:2px solid var(--text-secondary); border-radius:50%;
+  transform:translateY(-62%); pointer-events:none; transition:var(--transition);
 }
-.search-wrap:focus-within::before, .search-wrap:hover::before { color:var(--primary-deep); opacity:1; }
+.search-wrap::after {
+  content:''; position:absolute; left:22px; top:57%; width:6px; height:2px;
+  border-radius:2px; background:var(--text-secondary); transform:rotate(45deg);
+  transform-origin:left center; pointer-events:none; transition:var(--transition);
+}
+.search-wrap:focus-within::before, .search-wrap:hover::before { border-color:var(--primary-deep); }
+.search-wrap:focus-within::after, .search-wrap:hover::after { background:var(--primary-deep); }
 .logout-btn {
   background:none; border:1px solid var(--border); color:var(--text-muted);
   border-radius:16px; padding:5px 14px; font-size:12px; cursor:pointer;
@@ -817,8 +823,10 @@ body {
 [data-theme="dark"] .filter-pill { background:rgba(42,38,64,0.7); }
 [data-theme="dark"] .agent-switcher { background:rgba(42,38,64,0.72); }
 [data-theme="dark"] .agent-switch-btn.active { background:#3A3550; box-shadow:0 1px 7px rgba(0,0,0,.3); }
-[data-theme="dark"] .search-wrap::before { color:#D8D4E8; opacity:1; }
-[data-theme="dark"] .search-wrap:focus-within::before, [data-theme="dark"] .search-wrap:hover::before { color:#FFFFFF; }
+[data-theme="dark"] .search-wrap::before { border-color:#D8D4E8; }
+[data-theme="dark"] .search-wrap::after { background:#D8D4E8; }
+[data-theme="dark"] .search-wrap:focus-within::before, [data-theme="dark"] .search-wrap:hover::before { border-color:#FFFFFF; }
+[data-theme="dark"] .search-wrap:focus-within::after, [data-theme="dark"] .search-wrap:hover::after { background:#FFFFFF; }
 [data-theme="dark"] .cal-day.lv0 { background:var(--bg); }
 [data-theme="dark"] .cal-day.lv1 { background:#3A3060; color:#C8BBEA; }
 [data-theme="dark"] .cal-day.lv2 { background:#4A3878; color:#D8D0F0; }
