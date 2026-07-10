@@ -1772,7 +1772,7 @@ document.getElementById('btn-save').onclick=async()=>{
     const updated={...currentBucket,...savedMeta,metadata:savedMeta,content:savedContent,content_preview:savedContent.slice(0,200),score:saved.score??bScore(currentBucket)};
     const index=allBuckets.findIndex(b=>bId(b)===id);
     if(index>=0)allBuckets[index]=updated;
-    renderFeed(allBuckets);updateStats(allBuckets);
+    renderBucketSurfaces();
     toast('已保存 ✓');closeModal();
   }catch(e){toast('保存失败：'+(e&&e.message?e.message:'网络错误'));}
   finally{btn.disabled=false;btn.textContent='保存修改';}
@@ -2327,7 +2327,16 @@ function toast(m){const t=document.getElementById('toast');t.textContent=m;t.cla
 async function reload(){
   allBuckets=await fetchBuckets();
   allBuckets.sort((a,b)=>bDate(b)-bDate(a));
-  renderFeed(allBuckets);renderCal(calYear,calMonth);updateStats(allBuckets);
+  renderBucketSurfaces();
+}
+
+function renderBucketSurfaces(){
+  renderFeed(allBuckets);
+  renderCal(calYear,calMonth);
+  updateStats(allBuckets);
+  renderTimeline();
+  const activeTab=document.querySelector('.nav-tab.active');
+  if(activeTab&&activeTab.dataset.tab==='anchors')renderAnchors(allBuckets);
 }
 
 async function init(){
@@ -2335,7 +2344,7 @@ async function init(){
   allBuckets=await fetchBuckets();
   allBuckets.sort((a,b)=>bDate(b)-bDate(a));
   document.getElementById('mem-feed').innerHTML='';
-  renderFeed(allBuckets);renderCal(calYear,calMonth);updateStats(allBuckets);
+  renderBucketSurfaces();
 }
 
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeIPanel();}});
@@ -2440,8 +2449,15 @@ async function deleteLetter(id){
 async function loadAnchors(){
   const el=document.getElementById('anchor-list');
   try{
-    const r=await fetch('/api/buckets');const d=await r.json();
-    const anchors=d.filter(b=>b.anchor);
+    const r=await authFetch('/api/buckets',{cache:'no-store'});
+    if(!r||!r.ok){el.innerHTML='加载失败';return;}
+    const d=await r.json();
+    renderAnchors(d);
+  }catch(e){el.innerHTML='加载失败';}
+}
+function renderAnchors(buckets){
+  const el=document.getElementById('anchor-list');
+  const anchors=buckets.filter(b=>b.anchor);
     document.getElementById('anchor-count').textContent=`${anchors.length} / 24`;
     if(!anchors.length){
       el.innerHTML=`<div style="text-align:center;padding:60px 20px;">
@@ -2472,7 +2488,6 @@ async function loadAnchors(){
         </div>`;
       }).join('')}
     </div>`;
-  }catch(e){el.innerHTML='加载失败';}
 }
 
 /* ═══ I (Self) — Floating Panel ═══ */
