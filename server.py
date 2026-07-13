@@ -63,6 +63,7 @@ from decay_engine import DecayEngine
 from embedding_engine import EmbeddingEngine
 from import_memory import ImportEngine
 from diary_store import DiaryStore
+from activity_timeline_store import ActivityTimelineStore
 from utils import load_config, setup_logging, strip_wikilinks, count_tokens_approx
 
 # --- Load config & init logging / 加载配置 & 初始化日志 ---
@@ -110,6 +111,7 @@ dehydrator = Dehydrator(config)                      # Dehydrator / 脱水器
 decay_engine = DecayEngine(config, bucket_mgr)       # Decay engine / 衰减引擎
 import_engine = ImportEngine(config, bucket_mgr, dehydrator, embedding_engine)  # Import engine / 导入引擎
 diary_store = DiaryStore(config["buckets_dir"])
+activity_timeline_store = ActivityTimelineStore(config["buckets_dir"])
 
 VALID_AGENT_IDS = set(AGENT_RELATIONSHIP_LINES)
 VALID_RELATIONSHIP_LINES = set(AGENT_RELATIONSHIP_LINES.values())
@@ -2054,6 +2056,34 @@ async def diary_read(
         parts.append(heading + "\n" + entry.get("content", ""))
     return "=== 日记 ===\n" + "\n\n---\n\n".join(parts)
 
+
+@mcp.tool()
+async def activity_timeline_sync(
+    date: str,
+    events_json: str,
+    status: str = "draft",
+    timezone: str = "Asia/Shanghai",
+    agent_id: str = "",
+    relationship_line: str = "",
+    source_agent_model: str = "",
+) -> str:
+    """同步某一天的活动时间块快照。必须显式使用当前 agent_id 与 relationship_line；不会写入记忆桶。"""
+    try:
+        ctx = _owner_context(agent_id, relationship_line)
+        events = _json_lib.loads(events_json or "[]")
+        day = activity_timeline_store.sync_day(
+            date=date,
+            events=events,
+            status=status,
+            timezone_name=timezone,
+            agent_id=ctx["agent_id"],
+            relationship_line=ctx["relationship_line"],
+            source_agent_model=source_agent_model,
+        )
+        return f"🕒timeline→{day['date']} [{day['event_count']}]"
+    except Exception as e:
+        return f"同步活动时间线失败: {e}"
+
 # =============================================================
 # Dashboard API endpoints (for lightweight Web UI)
 # 仪表板 API（轻量 Web UI 用）
@@ -2104,6 +2134,30 @@ async def api_diary_write(request):
             source_agent_model=body.get("source_agent_model", ""),
         )
         return JSONResponse({"ok": True, "entry": entry}, status_code=201)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@mcp.custom_route("/api/activity-timeline", methods=["GET"])
+async def api_activity_timeline_list(request):
+    """List owner-isolated activity timeline day snapshots, newest first."""
+    from starlette.responses import JSONResponse
+    err = _require_auth(request)
+    if err:
+        return err
+    try:
+        query = request.query_params
+        ctx = _owner_context(query.get("agent_id", ""), query.get("relationship_line", ""))
+        days = activity_timeline_store.list_days(
+            agent_id=ctx["agent_id"],
+            relationship_line=ctx["relationship_line"],
+            date_from=query.get("date_from", ""),
+            date_to=query.get("date_to", ""),
+            limit=int(query.get("limit", "90") or 90),
+        )
+        return JSONResponse({"days": days, "count": len(days)})
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     except Exception as e:
