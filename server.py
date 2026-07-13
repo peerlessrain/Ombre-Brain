@@ -62,6 +62,7 @@ from dehydrator import Dehydrator
 from decay_engine import DecayEngine
 from embedding_engine import EmbeddingEngine
 from import_memory import ImportEngine
+from diary_store import DiaryStore
 from utils import load_config, setup_logging, strip_wikilinks, count_tokens_approx
 
 # --- Load config & init logging / 加载配置 & 初始化日志 ---
@@ -108,6 +109,7 @@ bucket_mgr = BucketManager(config, embedding_engine=embedding_engine)  # Bucket 
 dehydrator = Dehydrator(config)                      # Dehydrator / 脱水器
 decay_engine = DecayEngine(config, bucket_mgr)       # Decay engine / 衰减引擎
 import_engine = ImportEngine(config, bucket_mgr, dehydrator, embedding_engine)  # Import engine / 导入引擎
+diary_store = DiaryStore(config["buckets_dir"])
 
 VALID_AGENT_IDS = set(AGENT_RELATIONSHIP_LINES)
 VALID_RELATIONSHIP_LINES = set(AGENT_RELATIONSHIP_LINES.values())
@@ -120,14 +122,33 @@ def _default_line_for_agent(agent_id: str) -> str:
 
 
 def _owner_context(agent_id: str = "", relationship_line: str = "") -> dict:
-    agent = str(agent_id or os.environ.get("OMBRE_AGENT_ID", "claude") or "claude").strip().lower()
+    configured_agent = str(os.environ.get("OMBRE_AGENT_ID", "") or "").strip().lower()
+    configured_line = str(os.environ.get("OMBRE_RELATIONSHIP_LINE", "") or "").strip().lower()
+    owner_lock_enabled = str(os.environ.get("OMBRE_ENFORCE_OWNER", "") or "").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
+
+    if owner_lock_enabled:
+        if not configured_agent or not configured_line:
+            raise ValueError("OMBRE_ENFORCE_OWNER 需要同时配置 OMBRE_AGENT_ID 与 OMBRE_RELATIONSHIP_LINE")
+        requested_agent = str(agent_id or "").strip().lower()
+        requested_line = str(relationship_line or "").strip().lower()
+        if requested_agent and requested_agent != configured_agent:
+            raise ValueError("当前 MCP 进程已锁定 agent_id，拒绝跨脑区访问")
+        if requested_line and requested_line != configured_line:
+            raise ValueError("当前 MCP 进程已锁定 relationship_line，拒绝跨关系线访问")
+        agent = configured_agent
+        line = configured_line
+    else:
+        agent = str(agent_id or configured_agent or "claude").strip().lower()
+        line = str(
+            relationship_line
+            or configured_line
+            or _default_line_for_agent(agent)
+        ).strip().lower()
+
     if agent not in VALID_AGENT_IDS:
         raise ValueError("agent_id 只允许 claude、g 或 glm")
-    line = str(
-        relationship_line
-        or os.environ.get("OMBRE_RELATIONSHIP_LINE", "")
-        or _default_line_for_agent(agent)
-    ).strip().lower()
     if line != _default_line_for_agent(agent):
         raise ValueError(f"relationship_line 与 {agent} 不匹配")
     return {"agent_id": agent, "relationship_line": line}
@@ -930,7 +951,11 @@ async def breath(
             summary_tokens = count_tokens_approx(summary)
             if token_used + summary_tokens > max_tokens:
                 break
-            await bucket_mgr.touch(bucket["id"])
+            reads_touch_buckets = str(os.environ.get("OMBRE_DISABLE_READ_TOUCH", "") or "").strip().lower() not in {
+                "1", "true", "yes", "on",
+            }
+            if reads_touch_buckets:
+                await bucket_mgr.touch(bucket["id"])
             if bucket.get("vector_match"):
                 summary = f"[语义关联] [bucket_id:{bucket['id']}] {summary}"
             else:
@@ -1963,9 +1988,128 @@ async def letter_read(
     return "=== 信件 ===\n" + "\n\n---\n\n".join(parts)
 
 # =============================================================
+# Tool: diary_write / diary_read — 独立日记
+# 完整原文保存；不进入记忆桶，不合并、不衰减、不自动浮现
+# =============================================================
+@mcp.tool()
+async def diary_write(
+    content: str,
+    title: str = "",
+    date: str = "",
+    mood: str = "",
+    tags: str = "",
+    agent_id: str = "",
+    relationship_line: str = "",
+    source_agent_model: str = "",
+) -> str:
+    """写一篇完整日记。日记独立保存，不拆分为记忆桶，不衰减也不自动浮现。必须显式使用当前 agent_id 与 relationship_line。"""
+    try:
+        ctx = _owner_context(agent_id, relationship_line)
+        entry = diary_store.append(
+            content=content,
+            title=title,
+            entry_date=date,
+            mood=mood,
+            tags=_split_csv(tags),
+            agent_id=ctx["agent_id"],
+            relationship_line=ctx["relationship_line"],
+            source_module="diary",
+            source_agent_model=source_agent_model,
+        )
+        return f"📖diary→{entry['id']} [{entry['date']}]"
+    except Exception as e:
+        return f"写日记失败: {e}"
+
+
+@mcp.tool()
+async def diary_read(
+    date: str = "",
+    date_from: str = "",
+    date_to: str = "",
+    limit: int = 30,
+    agent_id: str = "",
+    relationship_line: str = "",
+) -> str:
+    """读取当前关系线的日记。date 可读取某一天；也可用 date_from/date_to 读取日期范围。"""
+    try:
+        ctx = _owner_context(agent_id, relationship_line)
+        start = date or date_from
+        end = date or date_to
+        entries = diary_store.list_entries(
+            agent_id=ctx["agent_id"],
+            relationship_line=ctx["relationship_line"],
+            date_from=start,
+            date_to=end,
+            limit=limit,
+        )
+    except Exception as e:
+        return f"读取日记失败: {e}"
+    if not entries:
+        return "没有找到匹配的日记。"
+    parts = []
+    for entry in entries:
+        heading = f"[{entry['id']}] {entry['date']}"
+        if entry.get("title"):
+            heading += f" · {entry['title']}"
+        parts.append(heading + "\n" + entry.get("content", ""))
+    return "=== 日记 ===\n" + "\n\n---\n\n".join(parts)
+
+# =============================================================
 # Dashboard API endpoints (for lightweight Web UI)
 # 仪表板 API（轻量 Web UI 用）
 # =============================================================
+@mcp.custom_route("/api/diary", methods=["GET"])
+async def api_diary_list(request):
+    """List owner-isolated diary entries, newest first."""
+    from starlette.responses import JSONResponse
+    err = _require_auth(request)
+    if err:
+        return err
+    try:
+        query = request.query_params
+        ctx = _owner_context(query.get("agent_id", ""), query.get("relationship_line", ""))
+        entries = diary_store.list_entries(
+            agent_id=ctx["agent_id"],
+            relationship_line=ctx["relationship_line"],
+            date_from=query.get("date_from", ""),
+            date_to=query.get("date_to", ""),
+            limit=int(query.get("limit", "60") or 60),
+        )
+        return JSONResponse({"entries": entries, "count": len(entries)})
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@mcp.custom_route("/api/diary", methods=["POST"])
+async def api_diary_write(request):
+    """Append one complete diary entry without touching memory buckets."""
+    from starlette.responses import JSONResponse
+    err = _require_auth(request)
+    if err:
+        return err
+    try:
+        body = await request.json()
+        ctx = _owner_context(body.get("agent_id", ""), body.get("relationship_line", ""))
+        entry = diary_store.append(
+            content=body.get("content", ""),
+            title=body.get("title", ""),
+            entry_date=body.get("date", ""),
+            mood=body.get("mood", ""),
+            tags=body.get("tags", []),
+            agent_id=ctx["agent_id"],
+            relationship_line=ctx["relationship_line"],
+            source_module=body.get("source_module", "diary"),
+            source_agent_model=body.get("source_agent_model", ""),
+        )
+        return JSONResponse({"ok": True, "entry": entry}, status_code=201)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
 @mcp.custom_route("/api/letter_write", methods=["POST"])
 async def api_letter_write(request):
     """Write a letter via dashboard."""

@@ -22,6 +22,7 @@
 import math
 import asyncio
 import logging
+import os
 from datetime import datetime
 
 logger = logging.getLogger("ombre_brain.decay")
@@ -272,6 +273,11 @@ class DecayEngine:
         Ensure the decay engine is started (lazy init on first call).
         确保衰减引擎已启动（懒加载，首次调用时启动）。
         """
+        disabled = str(os.environ.get("OMBRE_DISABLE_DECAY", "") or "").strip().lower() in {
+            "1", "true", "yes", "on",
+        }
+        if disabled:
+            return
         if not self._running:
             await self.start()
 

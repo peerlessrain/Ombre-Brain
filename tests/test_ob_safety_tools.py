@@ -13,6 +13,31 @@ def load_isolated_server(tmp_path, monkeypatch):
     return importlib.reload(server)
 
 
+def test_owner_lock_injects_configured_identity_and_rejects_cross_line(tmp_path, monkeypatch):
+    monkeypatch.setenv("OMBRE_AGENT_ID", "g")
+    monkeypatch.setenv("OMBRE_RELATIONSHIP_LINE", "g_line")
+    monkeypatch.setenv("OMBRE_ENFORCE_OWNER", "true")
+    server = load_isolated_server(tmp_path, monkeypatch)
+
+    assert server._owner_context() == {"agent_id": "g", "relationship_line": "g_line"}
+    assert server._owner_context("g", "g_line") == {"agent_id": "g", "relationship_line": "g_line"}
+
+    with pytest.raises(ValueError, match="拒绝跨脑区访问"):
+        server._owner_context("claude", "claude_line")
+    with pytest.raises(ValueError, match="拒绝跨关系线访问"):
+        server._owner_context("g", "claude_line")
+
+
+@pytest.mark.asyncio
+async def test_dedicated_process_can_disable_decay_without_changing_default_behavior(tmp_path, monkeypatch):
+    monkeypatch.setenv("OMBRE_DISABLE_DECAY", "true")
+    server = load_isolated_server(tmp_path, monkeypatch)
+
+    await server.decay_engine.ensure_started()
+
+    assert server.decay_engine.is_running is False
+
+
 async def noop_started():
     return None
 
