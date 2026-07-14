@@ -49,7 +49,7 @@ import httpx
 # --- 确保同目录下的模块能被正确导入 ---
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import Context, FastMCP
 
 from bucket_manager import (
     AGENT_RELATIONSHIP_LINES,
@@ -154,6 +154,26 @@ def _owner_context(agent_id: str = "", relationship_line: str = "") -> dict:
     if line != _default_line_for_agent(agent):
         raise ValueError(f"relationship_line 与 {agent} 不匹配")
     return {"agent_id": agent, "relationship_line": line}
+
+
+def _resolve_read_mode(read_mode: str = "", ctx: Context | None = None) -> str:
+    """Resolve normal/passive per request, using an MCP connection header as default."""
+    mode = str(read_mode or "").strip().lower()
+    if not mode and ctx is not None:
+        try:
+            request = ctx.request_context.request
+            if request is not None:
+                mode = str(request.headers.get("x-ombre-read-mode", "") or "").strip().lower()
+        except (AttributeError, ValueError):
+            mode = ""
+    if not mode:
+        legacy_disabled = str(os.environ.get("OMBRE_DISABLE_READ_TOUCH", "") or "").strip().lower() in {
+            "1", "true", "yes", "on",
+        }
+        mode = "passive" if legacy_disabled else "normal"
+    if mode not in {"normal", "passive"}:
+        raise ValueError("read_mode 只允许 normal 或 passive")
+    return mode
 
 
 def _ownership_for_create(
@@ -718,10 +738,13 @@ async def breath(
     importance_min: int = -1,
     agent_id: str = "",
     relationship_line: str = "",
+    read_mode: str = "",
+    ctx: Context | None = None,
 ) -> str:
-    """检索/浮现记忆。不传query或传空=自动浮现,有query=关键词检索。max_tokens控制返回总token上限(默认10000)。domain逗号分隔,valence/arousal 0~1(-1忽略)。max_results控制返回数量上限(默认20,最大50)。importance_min>=1时按重要度批量拉取(不走语义搜索,按importance降序返回最多20条)。"""
+    """检索/浮现记忆。read_mode=passive 时读取不更新 last_active；默认 normal。"""
     await decay_engine.ensure_started()
     owner_ctx = _owner_context(agent_id, relationship_line)
+    resolved_read_mode = _resolve_read_mode(read_mode, ctx)
     max_results = min(max_results, 50)
     max_tokens = min(max_tokens, 20000)
 
@@ -953,10 +976,7 @@ async def breath(
             summary_tokens = count_tokens_approx(summary)
             if token_used + summary_tokens > max_tokens:
                 break
-            reads_touch_buckets = str(os.environ.get("OMBRE_DISABLE_READ_TOUCH", "") or "").strip().lower() not in {
-                "1", "true", "yes", "on",
-            }
-            if reads_touch_buckets:
+            if resolved_read_mode == "normal":
                 await bucket_mgr.touch(bucket["id"])
             if bucket.get("vector_match"):
                 summary = f"[语义关联] [bucket_id:{bucket['id']}] {summary}"
@@ -1572,20 +1592,33 @@ async def anchor_delete(bucket_id: str, agent_id: str = "", relationship_line: s
 # 工具 5：pulse — 脉搏，系统状态 + 记忆列表
 # =============================================================
 @mcp.tool()
-async def pulse(include_archive: bool = False, agent_id: str = "", relationship_line: str = "") -> str:
-    """系统状态+记忆桶列表。include_archive=True含归档。"""
+async def pulse(
+    include_archive: bool = False,
+    agent_id: str = "",
+    relationship_line: str = "",
+    read_mode: str = "",
+    ctx: Context | None = None,
+) -> str:
+    """系统状态+记忆桶列表。include_archive=True含归档；pulse 本身不 touch。"""
     try:
         stats = await bucket_mgr.get_stats()
     except Exception as e:
         return f"获取系统状态失败: {e}"
 
+    decay_labels = {
+        "disabled": "已禁用",
+        "not_started": "尚未启动",
+        "running": "运行中",
+    }
+    resolved_read_mode = _resolve_read_mode(read_mode, ctx)
     status = (
         f"=== Ombre Brain 记忆系统 ===\n"
         f"固化记忆桶: {stats['permanent_count']} 个\n"
         f"动态记忆桶: {stats['dynamic_count']} 个\n"
         f"归档记忆桶: {stats['archive_count']} 个\n"
         f"总存储大小: {stats['total_size_kb']:.1f} KB\n"
-        f"衰减引擎: {'运行中' if decay_engine.is_running else '已停止'}\n"
+        f"衰减引擎: {decay_labels[decay_engine.status]}\n"
+        f"读取模式: {resolved_read_mode}\n"
     )
 
     # --- List all bucket summaries / 列出所有桶摘要 ---
@@ -1648,6 +1681,34 @@ async def pulse(include_archive: bool = False, agent_id: str = "", relationship_
     return status + "\n=== 记忆列表 ===\n" + "\n".join(lines)
 
 
+@mcp.tool()
+async def memory_touch(
+    bucket_ids: str,
+    agent_id: str = "",
+    relationship_line: str = "",
+) -> str:
+    """仅为最终确实用于回复的少量记忆更新 last_active；bucket_ids 逗号分隔，最多 10 个。"""
+    owner_ctx = _owner_context(agent_id, relationship_line)
+    ids = list(dict.fromkeys(_split_csv(bucket_ids)))
+    if not ids:
+        return "请提供至少一个 bucket_id。"
+    if len(ids) > 10:
+        return "一次最多 touch 10 个 bucket。"
+    touched = []
+    rejected = []
+    for bucket_id in ids:
+        bucket = await bucket_mgr.get(bucket_id)
+        if not bucket or not _bucket_visible_to_context(bucket, owner_ctx):
+            rejected.append(bucket_id)
+            continue
+        await bucket_mgr.touch(bucket_id)
+        touched.append(bucket_id)
+    result = f"已 touch: {','.join(touched)}" if touched else "没有可 touch 的记忆。"
+    if rejected:
+        result += f"\n未找到或不属于当前脑区: {','.join(rejected)}"
+    return result
+
+
 # =============================================================
 # Tool 6: dream — Dreaming, digest recent memories
 # 工具 6：dream — 做梦，消化最近的记忆
@@ -1658,9 +1719,15 @@ async def pulse(include_archive: bool = False, agent_id: str = "", relationship_
 # Claude then decides: resolve some, write feels, or do nothing.
 # =============================================================
 @mcp.tool()
-async def dream(agent_id: str = "", relationship_line: str = "") -> str:
-    """做梦——读取最近新增的记忆桶,供你自省。读完后可以trace(resolved=1)放下,或hold(feel=True)写感受。"""
+async def dream(
+    agent_id: str = "",
+    relationship_line: str = "",
+    read_mode: str = "",
+    ctx: Context | None = None,
+) -> str:
+    """做梦——读取最近新增的记忆桶。read_mode=passive 时保持被动读取语义。"""
     await decay_engine.ensure_started()
+    _resolve_read_mode(read_mode, ctx)
 
     try:
         all_buckets = await bucket_mgr.list_all(include_archive=False)

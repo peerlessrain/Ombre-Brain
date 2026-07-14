@@ -62,6 +62,22 @@ class DecayEngine:
         衰减引擎是否正在后台运行。"""
         return self._running
 
+    @property
+    def is_disabled(self) -> bool:
+        """Whether this process explicitly disables decay."""
+        return str(os.environ.get("OMBRE_DISABLE_DECAY", "") or "").strip().lower() in {
+            "1", "true", "yes", "on",
+        }
+
+    @property
+    def status(self) -> str:
+        """Return disabled, not_started, or running for truthful status output."""
+        if self.is_disabled:
+            return "disabled"
+        if self._running:
+            return "running"
+        return "not_started"
+
     # ---------------------------------------------------------
     # Core: calculate decay score for a single bucket
     # 核心：计算单个桶的衰减得分
@@ -273,10 +289,7 @@ class DecayEngine:
         Ensure the decay engine is started (lazy init on first call).
         确保衰减引擎已启动（懒加载，首次调用时启动）。
         """
-        disabled = str(os.environ.get("OMBRE_DISABLE_DECAY", "") or "").strip().lower() in {
-            "1", "true", "yes", "on",
-        }
-        if disabled:
+        if self.is_disabled:
             return
         if not self._running:
             await self.start()

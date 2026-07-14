@@ -1,4 +1,5 @@
 import importlib
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
@@ -36,6 +37,112 @@ async def test_dedicated_process_can_disable_decay_without_changing_default_beha
     await server.decay_engine.ensure_started()
 
     assert server.decay_engine.is_running is False
+    assert server.decay_engine.status == "disabled"
+
+
+def fake_context_with_headers(**headers):
+    request = SimpleNamespace(headers={key.lower(): value for key, value in headers.items()})
+    request_context = SimpleNamespace(request=request)
+    return SimpleNamespace(request_context=request_context)
+
+
+def test_read_mode_uses_explicit_argument_then_connection_header(tmp_path, monkeypatch):
+    server = load_isolated_server(tmp_path, monkeypatch)
+    ctx = fake_context_with_headers(**{"X-Ombre-Read-Mode": "passive"})
+
+    assert server._resolve_read_mode("", ctx) == "passive"
+    assert server._resolve_read_mode("normal", ctx) == "normal"
+    assert server._resolve_read_mode("", None) == "normal"
+    with pytest.raises(ValueError, match="read_mode"):
+        server._resolve_read_mode("frozen", ctx)
+
+
+@pytest.mark.asyncio
+async def test_pulse_reports_decay_state_and_read_mode(tmp_path, monkeypatch):
+    server = load_isolated_server(tmp_path, monkeypatch)
+
+    status = await server.pulse(agent_id="g", relationship_line="g_line", read_mode="passive")
+    assert "衰减引擎: 尚未启动" in status
+    assert "读取模式: passive" in status
+
+    monkeypatch.setenv("OMBRE_DISABLE_DECAY", "true")
+    disabled = await server.pulse(agent_id="g", relationship_line="g_line")
+    assert "衰减引擎: 已禁用" in disabled
+
+    monkeypatch.delenv("OMBRE_DISABLE_DECAY")
+    server.decay_engine._running = True
+    running = await server.pulse(agent_id="g", relationship_line="g_line")
+    assert "衰减引擎: 运行中" in running
+    server.decay_engine._running = False
+
+
+@pytest.mark.asyncio
+async def test_breath_passive_skips_touch_but_normal_read_touches(tmp_path, monkeypatch):
+    server = load_isolated_server(tmp_path, monkeypatch)
+    server.decay_engine.ensure_started = noop_started
+    bucket_id = await server.bucket_mgr.create(
+        content="SEARCHABLE_CONTENT",
+        tags=["verify"],
+        importance=5,
+        domain=["verify"],
+        valence=0.5,
+        arousal=0.3,
+        name="searchable",
+        agent_id="g",
+        relationship_line="g_line",
+        scope="agent_private",
+        visibility="same_line",
+    )
+    bucket = await server.bucket_mgr.get(bucket_id)
+    server.bucket_mgr.search = AsyncMock(return_value=[bucket])
+    server.bucket_mgr.touch = AsyncMock(return_value=True)
+    server.embedding_engine.search_similar = AsyncMock(return_value=[])
+    server.dehydrator.dehydrate = AsyncMock(return_value="SEARCHABLE_CONTENT")
+
+    passive = await server.breath(
+        query="SEARCHABLE",
+        agent_id="g",
+        relationship_line="g_line",
+        read_mode="passive",
+    )
+    assert bucket_id in passive
+    server.bucket_mgr.touch.assert_not_called()
+
+    normal = await server.breath(
+        query="SEARCHABLE",
+        agent_id="g",
+        relationship_line="g_line",
+        read_mode="normal",
+    )
+    assert bucket_id in normal
+    server.bucket_mgr.touch.assert_awaited_once_with(bucket_id)
+
+
+@pytest.mark.asyncio
+async def test_memory_touch_only_updates_visible_requested_buckets(tmp_path, monkeypatch):
+    server = load_isolated_server(tmp_path, monkeypatch)
+    own_id = await server.bucket_mgr.create(
+        content="OWN",
+        tags=[], importance=5, domain=["verify"], valence=0.5, arousal=0.3,
+        agent_id="g", relationship_line="g_line", scope="agent_private", visibility="same_line",
+    )
+    other_id = await server.bucket_mgr.create(
+        content="OTHER",
+        tags=[], importance=5, domain=["verify"], valence=0.5, arousal=0.3,
+        agent_id="claude", relationship_line="claude_line", scope="agent_private", visibility="same_line",
+    )
+    original_touch = server.bucket_mgr.touch
+    server.bucket_mgr.touch = AsyncMock(side_effect=original_touch)
+
+    result = await server.memory_touch(
+        f"{own_id},{other_id}",
+        agent_id="g",
+        relationship_line="g_line",
+    )
+
+    server.bucket_mgr.touch.assert_awaited_once_with(own_id)
+    assert own_id in result
+    assert other_id in result
 
 
 async def noop_started():
