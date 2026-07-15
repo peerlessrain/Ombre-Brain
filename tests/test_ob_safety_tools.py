@@ -208,6 +208,113 @@ async def test_hold_always_creates_new_bucket_and_never_merges(tmp_path, monkeyp
 
 
 @pytest.mark.asyncio
+async def test_bucket_get_returns_exact_full_metadata_without_touch(tmp_path, monkeypatch):
+    server = load_isolated_server(tmp_path, monkeypatch)
+    bucket_id = await server.bucket_mgr.create(
+        content="EXACT [[BODY]]",
+        tags=["verify"], importance=6, domain=["verify"], valence=0.4, arousal=0.7,
+        name="exact_bucket", agent_id="g", relationship_line="g_line",
+        scope="agent_private", visibility="same_line", source_module="hold",
+        source_agent_model="codex",
+    )
+    server.bucket_mgr.touch = AsyncMock(return_value=True)
+
+    result = __import__("json").loads(await server.bucket_get(bucket_id, "g", "g_line"))
+
+    assert result["status"] == "ok"
+    assert result["bucket_id"] == bucket_id
+    assert result["content"] == "EXACT [[BODY]]"
+    assert result["semantic_review"]["title"] == "exact_bucket"
+    assert result["semantic_review"]["domain"] == ["verify"]
+    assert result["semantic_review"]["perspective"]["memory_owner_agent"] == "g"
+    assert result["semantic_review"]["perspective"]["source_agent_model"] == "codex"
+    assert result["semantic_review"]["perspective"]["stored_explicitly"] is False
+    assert result["metadata"]["source_module"] == "hold"
+    assert result["metadata"]["agent_id"] == "g"
+    assert result["metadata"]["relationship_line"] == "g_line"
+    server.bucket_mgr.touch.assert_not_called()
+
+    forbidden = __import__("json").loads(
+        await server.bucket_get(bucket_id, "claude", "claude_line")
+    )
+    assert forbidden["status"] == "forbidden"
+
+
+@pytest.mark.asyncio
+async def test_verified_hold_stops_on_duplicate_without_writing(tmp_path, monkeypatch):
+    server = load_isolated_server(tmp_path, monkeypatch)
+    server.decay_engine.ensure_started = noop_started
+    old_id = await server.bucket_mgr.create(
+        content="SAME CONTENT",
+        tags=[], importance=5, domain=["verify"], valence=0.5, arousal=0.3,
+        agent_id="g", relationship_line="g_line", scope="agent_private",
+        visibility="same_line", source_module="hold",
+    )
+
+    result = __import__("json").loads(
+        await server.verified_hold("SAME CONTENT", "g", "g_line", source_agent_model="codex")
+    )
+
+    assert result["status"] == "duplicate_candidates"
+    assert result["written"] is False
+    assert result["candidates"][0]["bucket_id"] == old_id
+    assert result["candidates"][0]["exact_match"] is True
+    buckets = await server.bucket_mgr.list_all(include_archive=True)
+    assert len([b for b in buckets if b["content"] == "SAME CONTENT"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_verified_hold_writes_once_and_returns_verified_full_bucket(tmp_path, monkeypatch):
+    server = load_isolated_server(tmp_path, monkeypatch)
+    server.decay_engine.ensure_started = noop_started
+    server.dehydrator.analyze = AsyncMock(side_effect=fake_analyze)
+    server.embedding_engine.generate_and_store = AsyncMock(return_value=None)
+    server.bucket_mgr.search = AsyncMock(return_value=[])
+
+    result = __import__("json").loads(
+        await server.verified_hold(
+            "NEW VERIFIED CONTENT",
+            "g",
+            "g_line",
+            source_agent_model="codex",
+        )
+    )
+
+    assert result["status"] == "verified"
+    assert result["written"] is True
+    assert result["bucket"]["content"] == "NEW VERIFIED CONTENT"
+    review = result["bucket"]["semantic_review"]
+    assert review["title"] == "verify_bucket"
+    assert review["domain"] == ["verify"]
+    assert review["perspective"]["memory_owner_agent"] == "g"
+    assert review["perspective"]["source_agent_model"] == "codex"
+    assert "完整 content" in review["perspective"]["note"]
+    meta = result["bucket"]["metadata"]
+    assert meta["agent_id"] == "g"
+    assert meta["relationship_line"] == "g_line"
+    assert meta["scope"] == "agent_private"
+    assert meta["visibility"] == "same_line"
+    assert meta["source_module"] == "hold"
+    assert meta["source_agent_model"] == "codex"
+
+
+@pytest.mark.asyncio
+async def test_verified_hold_fails_closed_when_duplicate_check_errors(tmp_path, monkeypatch):
+    server = load_isolated_server(tmp_path, monkeypatch)
+    server.decay_engine.ensure_started = noop_started
+    server.bucket_mgr.list_all = AsyncMock(side_effect=RuntimeError("search unavailable"))
+    server.bucket_mgr.create = AsyncMock()
+
+    result = __import__("json").loads(
+        await server.verified_hold("DO NOT WRITE", "g", "g_line")
+    )
+
+    assert result["status"] == "duplicate_check_failed"
+    assert result["written"] is False
+    server.bucket_mgr.create.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_glm_hold_defaults_to_interim_manual_only(tmp_path, monkeypatch):
     server = load_isolated_server(tmp_path, monkeypatch)
     server.decay_engine.ensure_started = noop_started

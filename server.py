@@ -112,6 +112,7 @@ decay_engine = DecayEngine(config, bucket_mgr)       # Decay engine / 衰减引�
 import_engine = ImportEngine(config, bucket_mgr, dehydrator, embedding_engine)  # Import engine / 导入引擎
 diary_store = DiaryStore(config["buckets_dir"])
 activity_timeline_store = ActivityTimelineStore(config["buckets_dir"])
+_verified_hold_lock = asyncio.Lock()
 
 VALID_AGENT_IDS = set(AGENT_RELATIONSHIP_LINES)
 VALID_RELATIONSHIP_LINES = set(AGENT_RELATIONSHIP_LINES.values())
@@ -718,6 +719,61 @@ async def _merge_or_create(
     return bucket_id, False, hint
 
 
+def _full_bucket_payload(bucket: dict) -> dict:
+    """Return an exact, non-touching bucket view for verification workflows."""
+    meta = dict(bucket.get("metadata", {}) or {})
+    return {
+        "bucket_id": bucket.get("id", ""),
+        "content": bucket.get("content", ""),
+        "semantic_review": {
+            "title": meta.get("name", ""),
+            "domain": meta.get("domain", []),
+            "perspective": {
+                "stored_explicitly": bool(
+                    meta.get("author") or meta.get("from_agent") or meta.get("to_agent")
+                ),
+                "author": meta.get("author", ""),
+                "from_agent": meta.get("from_agent", ""),
+                "to_agent": meta.get("to_agent", ""),
+                "memory_owner_agent": meta.get("agent_id", ""),
+                "source_agent_model": meta.get("source_agent_model", ""),
+                "note": "普通 hold 不单独存储人称视角；请结合完整 content 最终判断我/阿瑜等主语是否准确。",
+            },
+        },
+        "metadata": meta,
+    }
+
+
+@mcp.tool()
+async def bucket_get(
+    bucket_id: str,
+    agent_id: str,
+    relationship_line: str,
+) -> str:
+    """按 bucket ID 被动回读完整正文和完整元数据；不更新 last_active。必须显式提供身份与关系线。"""
+    if not str(bucket_id or "").strip():
+        return _json_lib.dumps({"status": "error", "error": "bucket_id 不能为空"}, ensure_ascii=False)
+    if not str(agent_id or "").strip() or not str(relationship_line or "").strip():
+        return _json_lib.dumps(
+            {"status": "error", "error": "必须显式提供 agent_id 和 relationship_line"},
+            ensure_ascii=False,
+        )
+    owner_ctx = _owner_context(agent_id, relationship_line)
+    bucket = await bucket_mgr.get(bucket_id.strip())
+    if not bucket:
+        return _json_lib.dumps({"status": "not_found", "bucket_id": bucket_id.strip()}, ensure_ascii=False)
+    if not _bucket_visible_to_context(bucket, owner_ctx):
+        return _json_lib.dumps(
+            {"status": "forbidden", "bucket_id": bucket_id.strip(), "error": "记忆桶不属于当前脑区"},
+            ensure_ascii=False,
+        )
+    return _json_lib.dumps(
+        {"status": "ok", **_full_bucket_payload(bucket)},
+        ensure_ascii=False,
+        indent=2,
+    )
+
+
 # =============================================================
 # Tool 1: breath — Breathe
 # 工具 1：breath — 呼吸
@@ -1153,6 +1209,191 @@ async def hold(
     action = "合并→" if is_merged else "新建→"
     hint_line = f"\n{duplicate_hint}" if duplicate_hint else ""
     return f"{action}{result_name} {','.join(domain)}{hint_line}"
+
+
+def _duplicate_candidate_payload(bucket: dict, exact_match: bool = False) -> dict:
+    meta = dict(bucket.get("metadata", {}) or {})
+    return {
+        "bucket_id": bucket.get("id", ""),
+        "score": bucket.get("score"),
+        "exact_match": exact_match,
+        "content": bucket.get("content", ""),
+        "metadata": meta,
+    }
+
+
+async def _find_verified_hold_duplicates(content: str, owner_ctx: dict, limit: int = 5) -> list[dict]:
+    """Fail-safe duplicate lookup. This helper never touches matching buckets."""
+    all_buckets = _visible_buckets(
+        await bucket_mgr.list_all(include_archive=False),
+        owner_ctx,
+    )
+    exact_by_id = {
+        bucket["id"]: bucket
+        for bucket in all_buckets
+        if str(bucket.get("content", "")).strip() == content.strip()
+    }
+    matches = _visible_buckets(
+        await bucket_mgr.search(content, limit=max(1, min(limit, 10))),
+        owner_ctx,
+    )
+    threshold = float(config.get("merge_threshold", 75))
+    candidates: list[dict] = []
+    seen: set[str] = set()
+    for bucket in [*exact_by_id.values(), *matches]:
+        bucket_id = str(bucket.get("id", ""))
+        if not bucket_id or bucket_id in seen:
+            continue
+        exact = bucket_id in exact_by_id
+        score = float(bucket.get("score", 0) or 0)
+        if exact or score > threshold:
+            candidates.append(_duplicate_candidate_payload(bucket, exact_match=exact))
+            seen.add(bucket_id)
+        if len(candidates) >= limit:
+            break
+    return candidates
+
+
+@mcp.tool()
+async def verified_hold(
+    content: str,
+    agent_id: str,
+    relationship_line: str,
+    tags: str = "",
+    importance: int = 5,
+    pinned: bool = False,
+    valence: float = -1,
+    arousal: float = -1,
+    scope: str = "agent_private",
+    visibility: str = "same_line",
+    source_agent_model: str = "",
+) -> str:
+    """安全写入普通记忆：被动查重→新建→按 ID 完整回读验收。疑似重复或查重失败时不写入。"""
+    if not str(content or "").strip():
+        return _json_lib.dumps({"status": "error", "error": "内容为空，未写入"}, ensure_ascii=False)
+    if not str(agent_id or "").strip() or not str(relationship_line or "").strip():
+        return _json_lib.dumps(
+            {"status": "error", "error": "必须显式提供 agent_id 和 relationship_line，未写入"},
+            ensure_ascii=False,
+        )
+    if str(scope or "").strip().lower() != "agent_private":
+        return _json_lib.dumps(
+            {"status": "error", "error": "verified_hold 只允许 scope=agent_private，未写入"},
+            ensure_ascii=False,
+        )
+
+    owner = _ownership_for_create(
+        "hold",
+        agent_id=agent_id,
+        relationship_line=relationship_line,
+        scope=scope,
+        visibility=visibility,
+        source_agent_model=source_agent_model,
+    )
+    expected_visibility = "manual_only" if owner["agent_id"] == "glm" else "same_line"
+    if owner["visibility"] != expected_visibility:
+        return _json_lib.dumps(
+            {"status": "error", "error": f"verified_hold 当前身份只允许 visibility={expected_visibility}，未写入"},
+            ensure_ascii=False,
+        )
+
+    await decay_engine.ensure_started()
+    async with _verified_hold_lock:
+        try:
+            candidates = await _find_verified_hold_duplicates(content, owner, limit=5)
+        except Exception as exc:
+            logger.warning(f"verified_hold duplicate check failed; refusing write: {exc}")
+            return _json_lib.dumps(
+                {"status": "duplicate_check_failed", "written": False, "error": str(exc)},
+                ensure_ascii=False,
+            )
+        if candidates:
+            return _json_lib.dumps(
+                {
+                    "status": "duplicate_candidates",
+                    "written": False,
+                    "message": "发现疑似重复，无法安全判断应合并还是新建；已停止写入。",
+                    "candidates": candidates,
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+
+        try:
+            analysis = await dehydrator.analyze(content)
+        except Exception as exc:
+            logger.warning(f"verified_hold auto-tagging failed, using defaults: {exc}")
+            analysis = {
+                "domain": ["未分类"], "valence": 0.5, "arousal": 0.3,
+                "tags": [], "suggested_name": "",
+            }
+        extra_tags = [tag.strip() for tag in tags.split(",") if tag.strip()]
+        final_tags = extra_tags if extra_tags else list(analysis.get("tags", []))[:5]
+        final_valence = valence if 0 <= valence <= 1 else analysis.get("valence", 0.5)
+        final_arousal = arousal if 0 <= arousal <= 1 else analysis.get("arousal", 0.3)
+        final_importance = 10 if pinned else max(1, min(10, importance))
+        create_kwargs = {
+            "content": content,
+            "tags": final_tags,
+            "importance": final_importance,
+            "domain": analysis.get("domain", ["未分类"]),
+            "valence": final_valence,
+            "arousal": final_arousal,
+            "name": analysis.get("suggested_name") or None,
+            **owner,
+        }
+        if pinned:
+            create_kwargs.update({"bucket_type": "permanent", "pinned": True})
+        bucket_id = await bucket_mgr.create(**create_kwargs)
+        try:
+            await embedding_engine.generate_and_store(bucket_id, content)
+        except Exception:
+            pass
+
+        saved = await bucket_mgr.get(bucket_id)
+        expected = {
+            "agent_id": owner["agent_id"],
+            "relationship_line": owner["relationship_line"],
+            "scope": "agent_private",
+            "visibility": expected_visibility,
+            "source_module": "hold",
+            "source_agent_model": owner["source_agent_model"],
+        }
+        mismatches = {}
+        if not saved:
+            mismatches["bucket"] = {"expected": "readable", "actual": "not_found"}
+        else:
+            if saved.get("content", "") != content:
+                mismatches["content"] = {"expected": content, "actual": saved.get("content", "")}
+            saved_meta = saved.get("metadata", {}) or {}
+            for field, expected_value in expected.items():
+                actual_value = saved_meta.get(field, "")
+                if actual_value != expected_value:
+                    mismatches[field] = {"expected": expected_value, "actual": actual_value}
+
+        if mismatches:
+            logger.error(f"verified_hold post-write verification failed for {bucket_id}: {mismatches}")
+            return _json_lib.dumps(
+                {
+                    "status": "verification_failed",
+                    "written": True,
+                    "bucket_id": bucket_id,
+                    "message": "写入后复核失败；已停止，未继续修改或删除该桶。",
+                    "mismatches": mismatches,
+                    "bucket": _full_bucket_payload(saved) if saved else None,
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        return _json_lib.dumps(
+            {
+                "status": "verified",
+                "written": True,
+                "bucket": _full_bucket_payload(saved),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
 
 
 # =============================================================
