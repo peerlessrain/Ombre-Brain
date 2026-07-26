@@ -29,14 +29,20 @@ import os
 import math
 import logging
 import shutil
-from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
 import frontmatter
 from rapidfuzz import fuzz
 
-from utils import generate_bucket_id, sanitize_name, safe_path, now_iso
+from utils import (
+    generate_bucket_id,
+    now_iso,
+    now_shanghai,
+    parse_stored_datetime,
+    sanitize_name,
+    safe_path,
+)
 
 logger = logging.getLogger("ombre_brain.bucket")
 
@@ -528,7 +534,9 @@ class BucketManager:
 
             # --- Time ripple: boost nearby memories within ±48h ---
             # --- 时间涟漪：±48小时内的记忆轻微唤醒 ---
-            current_time = datetime.fromisoformat(str(post.get("created", post.get("last_active", ""))))
+            current_time = parse_stored_datetime(
+                post.get("created", post.get("last_active", ""))
+            )
             await self._time_ripple(bucket_id, current_time)
         except Exception as e:
             logger.warning(f"Failed to touch bucket / 触碰桶失败: {bucket_id}: {e}")
@@ -558,7 +566,7 @@ class BucketManager:
 
             created_str = meta.get("created", meta.get("last_active", ""))
             try:
-                created = datetime.fromisoformat(str(created_str))
+                created = parse_stored_datetime(created_str)
                 delta_hours = abs((reference_time - created).total_seconds()) / 3600
             except (ValueError, TypeError):
                 continue
@@ -770,8 +778,8 @@ class BucketManager:
         """
         last_active_str = meta.get("last_active", meta.get("created", ""))
         try:
-            last_active = datetime.fromisoformat(str(last_active_str))
-            days = max(0.0, (datetime.now() - last_active).total_seconds() / 86400)
+            last_active = parse_stored_datetime(last_active_str)
+            days = max(0.0, (now_shanghai() - last_active).total_seconds() / 86400)
         except (ValueError, TypeError):
             days = 30
         return math.exp(-0.02 * days)

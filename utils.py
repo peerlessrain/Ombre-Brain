@@ -15,7 +15,11 @@ import uuid
 import yaml
 import logging
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
+
+
+SHANGHAI = timezone(timedelta(hours=8), "Asia/Shanghai")
+UTC = timezone.utc
 
 
 def load_config(config_path: str = None) -> dict:
@@ -232,7 +236,26 @@ def count_tokens_approx(text: str) -> int:
 
 def now_iso() -> str:
     """
-    Return current time as ISO format string.
-    返回当前时间的 ISO 格式字符串。
+    Return the current Shanghai time with an explicit UTC+08:00 offset.
+    返回带明确 UTC+08:00 偏移的上海当前时间。
     """
-    return datetime.now().isoformat(timespec="seconds")
+    return datetime.now(SHANGHAI).isoformat(timespec="seconds")
+
+
+def now_shanghai() -> datetime:
+    """Return an aware datetime in Asia/Shanghai."""
+    return datetime.now(SHANGHAI)
+
+
+def parse_stored_datetime(value: object) -> datetime:
+    """
+    Parse stored timestamps into an aware datetime.
+
+    Historical bucket timestamps were written without an offset by UTC-hosted
+    servers, so offset-less values remain interpreted as UTC for compatibility.
+    New timestamps include +08:00 explicitly.
+    """
+    parsed = datetime.fromisoformat(str(value))
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed

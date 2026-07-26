@@ -166,17 +166,27 @@ class Dehydrator:
     def __init__(self, config: dict):
         # --- Read dehydration API config / 读取脱水 API 配置 ---
         dehy_cfg = config.get("dehydration", {})
-        self.api_key = dehy_cfg.get("api_key", "")
-        self.model = dehy_cfg.get("model", "deepseek-chat")
-        self.base_url = dehy_cfg.get("base_url", "https://api.deepseek.com/v1")
-        self.max_tokens = dehy_cfg.get("max_tokens", 1024)
-        self.temperature = dehy_cfg.get("temperature", 0.1)
+        self.client = None
+        self.reconfigure(dehy_cfg)
 
-        # --- API availability / 是否有可用的 API ---
-        self.api_available = bool(self.api_key)
+        # --- SQLite dehydration cache ---
+        # --- SQLite 脱水缓存：content hash → summary ---
+        db_path = os.path.join(config["buckets_dir"], "dehydration_cache.db")
+        self.cache_db_path = db_path
+        self._init_cache_db()
 
-        # --- Initialize OpenAI-compatible client ---
-        # --- 初始化 OpenAI 兼容客户端 ---
+    def reconfigure(self, dehy_cfg: dict) -> None:
+        """Apply runtime model settings and rebuild the API client atomically."""
+        cfg = dehy_cfg if isinstance(dehy_cfg, dict) else {}
+        self.api_key = str(cfg.get("api_key", "") or "").strip()
+        self.model = str(cfg.get("model", "gemini-2.5-flash-lite") or "").strip()
+        self.base_url = str(
+            cfg.get("base_url", "https://generativelanguage.googleapis.com/v1beta/openai") or ""
+        ).strip()
+        self.max_tokens = int(cfg.get("max_tokens", 1024) or 1024)
+        self.temperature = float(cfg.get("temperature", 0.1) or 0.1)
+        self.api_available = bool(self.api_key and self.model and self.base_url)
+
         if self.api_available:
             self.client = AsyncOpenAI(
                 api_key=self.api_key,
@@ -185,12 +195,6 @@ class Dehydrator:
             )
         else:
             self.client = None
-
-        # --- SQLite dehydration cache ---
-        # --- SQLite 脱水缓存：content hash → summary ---
-        db_path = os.path.join(config["buckets_dir"], "dehydration_cache.db")
-        self.cache_db_path = db_path
-        self._init_cache_db()
 
     def _init_cache_db(self):
         """Create dehydration cache table if not exists."""

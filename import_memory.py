@@ -22,7 +22,7 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
-from utils import count_tokens_approx, now_iso
+from utils import SHANGHAI, count_tokens_approx, now_iso
 
 logger = logging.getLogger("ombre_brain.import")
 
@@ -88,7 +88,7 @@ def _parse_chatgpt_json(data: list | dict) -> list[dict]:
                 role = msg.get("author", {}).get("role", "user")
                 ts = msg.get("create_time", "")
                 if isinstance(ts, (int, float)):
-                    ts = datetime.fromtimestamp(ts).isoformat()
+                    ts = datetime.fromtimestamp(ts, SHANGHAI).isoformat()
                 turns.append({"role": role, "content": content.strip(), "timestamp": str(ts)})
         else:
             # Simpler format: list of messages

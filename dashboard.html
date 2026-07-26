@@ -2180,7 +2180,7 @@ async function loadConfig(){
     document.getElementById('cfg-emb-enabled').value=c.embedding.enabled?'true':'false';
     document.getElementById('cfg-emb-model').value=c.embedding.model||'text-embedding-004';
     document.getElementById('cfg-merge').value=c.merge_threshold||75;
-    document.getElementById('config-readonly').innerHTML=`Transport: <b>${c.transport}</b><br>Buckets dir: <b>${c.buckets_dir}</b>`;
+    document.getElementById('config-readonly').innerHTML=`Transport: <b>${c.transport}</b><br>Buckets dir: <b>${c.buckets_dir}</b><br>Tagging pipeline: <b>${c.dehydration.api_available?'ready':'unavailable'}</b>`;
   }catch(e){document.getElementById('config-status').innerHTML=`<span style="color:var(--negative)">加载失败: ${e.message}</span>`;}
 }
 async function saveConfig(persist){

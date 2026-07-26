@@ -1433,11 +1433,8 @@ async def grow(
         try:
             analysis = await dehydrator.analyze(content)
         except Exception as e:
-            logger.warning(f"Fast-path analyze failed / 快速路径打标失败: {e}")
-            analysis = {
-                "domain": ["未分类"], "valence": 0.5, "arousal": 0.3,
-                "tags": [], "suggested_name": "",
-            }
+            logger.error(f"Fast-path analyze failed; refusing untagged write / 快速路径打标失败，拒绝写入未打标桶: {e}")
+            return f"记忆整理失败: 打标模型不可用或返回异常: {e}"
         result_name, is_merged, duplicate_hint = await _merge_or_create(
             content=content.strip(),
             tags=analysis.get("tags", []),
@@ -1859,6 +1856,8 @@ async def pulse(
         f"归档记忆桶: {stats['archive_count']} 个\n"
         f"总存储大小: {stats['total_size_kb']:.1f} KB\n"
         f"衰减引擎: {decay_labels[decay_engine.status]}\n"
+        f"Tagging model: {dehydrator.model or '(not configured)'}\n"
+        f"Tagging pipeline: {'ready' if dehydrator.api_available else 'unavailable'}\n"
         f"读取模式: {resolved_read_mode}\n"
     )
 
@@ -2850,6 +2849,7 @@ async def api_config_get(request):
     masked_key = f"{api_key[:4]}...{api_key[-4:]}" if len(api_key) > 8 else ("***" if api_key else "")
     return JSONResponse({
         "dehydration": {
+            "api_available": bool(dehydrator.api_available),
             "model": dehy.get("model", ""),
             "base_url": dehy.get("base_url", ""),
             "api_key_masked": masked_key,
@@ -2892,15 +2892,7 @@ async def api_config_update(request):
             dehy["api_key"] = d["api_key"]
             updated.append("dehydration.api_key")
         # Hot-reload dehydrator
-        dehydrator.model = dehy.get("model", "gemini-2.5-flash-lite")
-        dehydrator.base_url = dehy.get("base_url", "")
-        dehydrator.api_key = dehy.get("api_key", "")
-        if hasattr(dehydrator, "client") and dehydrator.api_key:
-            from openai import AsyncOpenAI
-            dehydrator.client = AsyncOpenAI(
-                api_key=dehydrator.api_key,
-                base_url=dehydrator.base_url,
-            )
+        dehydrator.reconfigure(dehy)
 
     # --- Embedding config ---
     if "embedding" in body:
@@ -3246,6 +3238,11 @@ async def api_system_status(request):
         return JSONResponse({
             "decay_engine": "running" if decay_engine.is_running else "stopped",
             "embedding_enabled": embedding_engine.enabled,
+            "dehydration": {
+                "model": dehydrator.model,
+                "api_available": bool(dehydrator.api_available),
+                "base_url_configured": bool(dehydrator.base_url),
+            },
             "buckets": {
                 "permanent": stats.get("permanent_count", 0),
                 "dynamic": stats.get("dynamic_count", 0),
