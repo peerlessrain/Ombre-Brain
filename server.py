@@ -2297,7 +2297,7 @@ async def letter_read(
     return "=== 信件 ===\n" + "\n\n---\n\n".join(parts)
 
 # =============================================================
-# Tool: diary_write / diary_read — 独立日记
+# Tool: diary_write / diary_read / diary_update / diary_delete — 独立日记
 # 完整原文保存；不进入记忆桶，不合并、不衰减、不自动浮现
 # =============================================================
 @mcp.tool()
@@ -2332,6 +2332,7 @@ async def diary_write(
 
 @mcp.tool()
 async def diary_read(
+    diary_id: str = "",
     date: str = "",
     date_from: str = "",
     date_to: str = "",
@@ -2339,18 +2340,26 @@ async def diary_read(
     agent_id: str = "",
     relationship_line: str = "",
 ) -> str:
-    """读取当前关系线的日记。date 可读取某一天；也可用 date_from/date_to 读取日期范围。"""
+    """读取当前关系线的日记。diary_id 可精确读取一篇；也可按日期或日期范围读取。"""
     try:
         ctx = _owner_context(agent_id, relationship_line)
-        start = date or date_from
-        end = date or date_to
-        entries = diary_store.list_entries(
-            agent_id=ctx["agent_id"],
-            relationship_line=ctx["relationship_line"],
-            date_from=start,
-            date_to=end,
-            limit=limit,
-        )
+        if diary_id:
+            entry = diary_store.get(
+                diary_id,
+                agent_id=ctx["agent_id"],
+                relationship_line=ctx["relationship_line"],
+            )
+            entries = [entry] if entry else []
+        else:
+            start = date or date_from
+            end = date or date_to
+            entries = diary_store.list_entries(
+                agent_id=ctx["agent_id"],
+                relationship_line=ctx["relationship_line"],
+                date_from=start,
+                date_to=end,
+                limit=limit,
+            )
     except Exception as e:
         return f"读取日记失败: {e}"
     if not entries:
@@ -2362,6 +2371,59 @@ async def diary_read(
             heading += f" · {entry['title']}"
         parts.append(heading + "\n" + entry.get("content", ""))
     return "=== 日记 ===\n" + "\n\n---\n\n".join(parts)
+
+@mcp.tool()
+async def diary_update(
+    diary_id: str,
+    agent_id: str,
+    relationship_line: str,
+    date: str | None = None,
+    title: str | None = None,
+    content: str | None = None,
+    mood: str | None = None,
+    tags: str | None = None,
+    source_agent_model: str | None = None,
+) -> str:
+    """按 diary_id 精确修改当前关系线的一篇日记。只修改明确传入的字段，其余内容保持不变。建议先 diary_read 精确读取。"""
+    try:
+        ctx = _owner_context(agent_id, relationship_line)
+        entry = diary_store.update(
+            diary_id,
+            agent_id=ctx["agent_id"],
+            relationship_line=ctx["relationship_line"],
+            entry_date=date,
+            title=title,
+            content=content,
+            mood=mood,
+            tags=_split_csv(tags) if tags is not None else None,
+            source_agent_model=source_agent_model,
+        )
+        if not entry:
+            return f"更新日记失败: 没有找到 ID 为 {diary_id} 的日记。"
+        return f"diary_updated:{entry['id']} [{entry['date']}]"
+    except Exception as e:
+        return f"更新日记失败: {e}"
+
+
+@mcp.tool()
+async def diary_delete(
+    diary_id: str,
+    agent_id: str,
+    relationship_line: str,
+) -> str:
+    """按 diary_id 从当前关系线的独立日记存储中精确删除一篇日记。请先 diary_read 核对。"""
+    try:
+        ctx = _owner_context(agent_id, relationship_line)
+        deleted_id = diary_store.delete(
+            diary_id,
+            agent_id=ctx["agent_id"],
+            relationship_line=ctx["relationship_line"],
+        )
+        if not deleted_id:
+            return f"删除日记失败: 没有找到 ID 为 {diary_id} 的日记。"
+        return f"diary_deleted:{deleted_id}"
+    except Exception as e:
+        return f"删除日记失败: {e}"
 
 
 @mcp.tool()

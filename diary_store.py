@@ -1,4 +1,4 @@
-"""Owner-isolated, append-only diary storage for Ombre Brain.
+"""Owner-isolated diary storage for Ombre Brain.
 
 Diary entries live beside memory buckets on the same persistent volume, but
 they are deliberately excluded from BucketManager so they never decay,
@@ -134,6 +134,88 @@ class DiaryStore:
         clean_id = str(entry_id or "").strip().lower()
         if not re.fullmatch(r"[0-9a-f]{12}", clean_id):
             return None
+        found = self._find(clean_id, owner)
+        return found[1] if found else None
+
+    def update(
+        self,
+        entry_id: str,
+        *,
+        agent_id: str,
+        relationship_line: str,
+        entry_date: str | None = None,
+        title: str | None = None,
+        content: str | None = None,
+        mood: str | None = None,
+        tags: list[str] | str | None = None,
+        source_agent_model: str | None = None,
+    ) -> dict | None:
+        """Patch one exact diary entry, preserving every omitted field."""
+        owner = _validate_owner(agent_id, relationship_line)
+        clean_id = str(entry_id or "").strip().lower()
+        if not re.fullmatch(r"[0-9a-f]{12}", clean_id):
+            return None
+        found = self._find(clean_id, owner)
+        if not found:
+            return None
+        source, entry = found
+
+        if entry_date is not None:
+            entry["date"] = _validate_date(entry_date)
+        if title is not None:
+            entry["title"] = str(title).strip()[:120]
+        if content is not None:
+            body = str(content).strip()
+            if not body:
+                raise ValueError("日记内容不能为空")
+            if len(body) > 100_000:
+                raise ValueError("单篇日记不能超过 100000 字符")
+            entry["content"] = body
+        if mood is not None:
+            entry["mood"] = str(mood).strip()[:80]
+        if tags is not None:
+            entry["tags"] = _normalize_tags(tags)
+        if source_agent_model is not None:
+            entry["source_agent_model"] = str(source_agent_model).strip()[:120]
+
+        entry["updated_at"] = datetime.now(SHANGHAI).isoformat(timespec="seconds")
+        day = str(entry["date"])
+        target_dir = self._owner_dir(**owner) / day[:4]
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target = _safe_child(target_dir, f"{day}_{clean_id}.md")
+        temp = _safe_child(target_dir, f".{day}_{clean_id}.tmp")
+        metadata = {key: value for key, value in entry.items() if key != "content"}
+        rendered = frontmatter.dumps(frontmatter.Post(entry["content"], **metadata))
+        try:
+            temp.write_text(rendered, encoding="utf-8")
+            os.replace(temp, target)
+            if source != target:
+                source.unlink(missing_ok=True)
+        finally:
+            if temp.exists():
+                temp.unlink(missing_ok=True)
+        return self._load(target)
+
+    def delete(
+        self,
+        entry_id: str,
+        *,
+        agent_id: str,
+        relationship_line: str,
+    ) -> str | None:
+        """Delete one exact entry from the independent diary store."""
+        owner = _validate_owner(agent_id, relationship_line)
+        clean_id = str(entry_id or "").strip().lower()
+        if not re.fullmatch(r"[0-9a-f]{12}", clean_id):
+            return None
+        found = self._find(clean_id, owner)
+        if not found:
+            return None
+        path, _entry = found
+        path.unlink()
+        return clean_id
+
+    def _find(self, clean_id: str, owner: dict) -> tuple[Path, dict] | None:
         owner_dir = self._owner_dir(**owner)
         if not owner_dir.exists():
             return None
@@ -141,10 +223,11 @@ class DiaryStore:
             entry = self._load(path)
             if (
                 entry
+                and entry.get("id") == clean_id
                 and entry.get("agent_id") == owner["agent_id"]
                 and entry.get("relationship_line") == owner["relationship_line"]
             ):
-                return entry
+                return path, entry
         return None
 
     def _owner_dir(self, *, agent_id: str, relationship_line: str) -> Path:
